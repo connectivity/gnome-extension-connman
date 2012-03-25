@@ -24,6 +24,7 @@ const PopupMenu = imports.ui.popupMenu;
 const PanelMenu = imports.ui.panelMenu;
 const Gettext = imports.gettext;
 const Clutter = imports.gi.Clutter;
+const DBus = imports.dbus;
 
 const _ = Gettext.gettext;
 
@@ -39,6 +40,10 @@ ConnManager.prototype = {
     _init: function(metadata) {
         PanelMenu.Button.prototype._init.call(this, 0.0);
         this.build_ui();
+        DBus.system.watch_name('net.connman', null,
+			   Lang.bind(this, this.ConnmanAppeared),
+			   Lang.bind(this, this.ConnmanVanished)
+        );
     },
 
     build_ui: function() {
@@ -52,6 +57,27 @@ ConnManager.prototype = {
         this.main_icon.add_actor(this.icon);
 
         this.actor.add_actor(this.main_icon);
+	this.ConnmanVanished();
+    },
+
+    ConnmanAppeared: function() {
+	if (this._mainmenu)
+	    this._mainmenu.destroy();
+
+	this._mainmenu = new PopupMenu.PopupMenuSection();
+	let connmand = new PopupMenu.PopupMenuItem(_("Connman is running"), { reactive: false, style_class: "section-title" });
+	this._mainmenu.addMenuItem(connmand);
+	this.menu.addMenuItem(this._mainmenu);
+    },
+
+    ConnmanVanished: function() {
+	if (this._mainmenu)
+	    this._mainmenu.destroy();
+
+	this._mainmenu = new PopupMenu.PopupMenuSection();
+	let no_connmand = new PopupMenu.PopupMenuItem(_("Connman is not running"), { reactive: false, style_class: "section-title" });
+	this._mainmenu.addMenuItem(no_connmand);
+	this.menu.addMenuItem(this._mainmenu);
     },
 
     enable: function() {
