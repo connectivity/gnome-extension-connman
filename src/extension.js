@@ -50,15 +50,38 @@ Manager.prototype = {
     _init: function(connmgr) {
         DBus.system.proxifyObject(this, 'net.connman', '/');
 
-	this._mainmenu = new PopupMenu.PopupMenuSection();
-	let connmand = new PopupMenu.PopupMenuItem(_("Connman is running"), { reactive: false, style_class: "section-title" });
-	this._mainmenu.addMenuItem(connmand);
-	connmgr.menu.addMenuItem(this._mainmenu);
+	this.mgr_menu = new PopupMenu.PopupMenuSection();
+	connmgr.menu.addMenuItem(this.mgr_menu);
+
+	this.GetPropertiesRemote(Lang.bind(this,
+            function(result, excp) {
+		if (!excp)
+		    this.create_offline(result['OfflineMode']);
+	}));
     },
 
     destroy: function() {
-	this._mainmenu.destroy();
+	this.mgr_menu.destroy();
     },
+
+    create_offline: function(offline) {
+        this.offline_switch = new PopupMenu.PopupSwitchMenuItem("Offlinemode", offline);
+        this.offline_switch.connect("toggled", Lang.bind(this, this.offline_toggle));
+
+	this.mgr_menu.addMenuItem(this.offline_switch);
+
+	this.connect('PropertyChanged', Lang.bind(this, function(sender, property, value) {
+	    if (property == "OfflineMode") {
+		global.log('offline property changed:' + value);
+		this.offline_switch.setToggleState(value);
+	    };
+	}));
+    },
+
+    offline_toggle: function(item, value) {
+	this.SetPropertyRemote("OfflineMode", value);
+    },
+
 };
 
 DBus.proxifyPrototype(Manager.prototype, ManagerIface);
