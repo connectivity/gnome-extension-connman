@@ -28,6 +28,41 @@ const DBus = imports.dbus;
 
 const _ = Gettext.gettext;
 
+const ManagerIface = {
+    name: 'net.connman.Manager',
+    methods: [
+        { name: 'GetProperties', inSignature: '', outSignature: 'a{sv}' },
+        { name: 'SetProperty', inSignature: 'sv', outSignature: '' },
+        { name: 'GetTechnologies', inSignature: '', outSignature: 'a(oa{sv})' }
+    ],
+    signals: [
+        { name: 'PropertyChanged', inSignature: '{sv}' },
+        { name: 'TechnologyAdded', inSignature: 'oa{sv}' },
+        { name: 'TechnologyRemoved', inSignature: 'o' }
+    ]
+};
+
+function Manager() {
+    this._init.apply(this, arguments);
+}
+
+Manager.prototype = {
+    _init: function(connmgr) {
+        DBus.system.proxifyObject(this, 'net.connman', '/');
+
+	this._mainmenu = new PopupMenu.PopupMenuSection();
+	let connmand = new PopupMenu.PopupMenuItem(_("Connman is running"), { reactive: false, style_class: "section-title" });
+	this._mainmenu.addMenuItem(connmand);
+	connmgr.menu.addMenuItem(this._mainmenu);
+    },
+
+    destroy: function() {
+	this._mainmenu.destroy();
+    },
+};
+
+DBus.proxifyPrototype(Manager.prototype, ManagerIface);
+
 function ConnManager(metadata) {
     this._init(metadata);
 }
@@ -64,15 +99,12 @@ ConnManager.prototype = {
 	if (this._mainmenu)
 	    this._mainmenu.destroy();
 
-	this._mainmenu = new PopupMenu.PopupMenuSection();
-	let connmand = new PopupMenu.PopupMenuItem(_("Connman is running"), { reactive: false, style_class: "section-title" });
-	this._mainmenu.addMenuItem(connmand);
-	this.menu.addMenuItem(this._mainmenu);
+	this.manager = new Manager(this)
     },
 
     ConnmanVanished: function() {
-	if (this._mainmenu)
-	    this._mainmenu.destroy();
+	if (this.manager)
+	    this.manager.destroy();
 
 	this._mainmenu = new PopupMenu.PopupMenuSection();
 	let no_connmand = new PopupMenu.PopupMenuItem(_("Connman is not running"), { reactive: false, style_class: "section-title" });
