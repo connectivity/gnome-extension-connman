@@ -28,6 +28,42 @@ const DBus = imports.dbus;
 
 const _ = Gettext.gettext;
 
+const ServiceIface = {
+    name: 'net.connman.Service',
+    methods: [
+        { name: 'GetProperties', inSignature: '', outSignature: 'a{sv}' }
+    ],
+    signals: [
+        { name: 'PropertyChanged', inSignature: '{sv}' }
+    ]
+};
+
+function Service() {
+    this._init.apply(this, arguments);
+}
+
+Service.prototype = {
+    __proto__: PopupMenu.PopupBaseMenuItem.prototype,
+
+    _init: function(path, mgr) {
+	PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
+        DBus.system.proxifyObject(this, 'net.connman', path);
+	this.path = path;
+
+	this.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
+		this._label = new St.Label({ text: result['Name'] });
+		this.addActor(this._label);
+		mgr.serv_menu.addMenuItem(this);
+	    }));
+    },
+
+    get_path: function() {
+	return this.path;
+    },
+};
+
+DBus.proxifyPrototype(Service.prototype, ServiceIface);
+
 const TechnologyIface = {
     name: 'net.connman.Technology',
     methods: [
@@ -85,12 +121,15 @@ const ManagerIface = {
     methods: [
         { name: 'GetProperties', inSignature: '', outSignature: 'a{sv}' },
         { name: 'SetProperty', inSignature: 'sv', outSignature: '' },
-        { name: 'GetTechnologies', inSignature: '', outSignature: 'a(oa{sv})' }
+        { name: 'GetTechnologies', inSignature: '', outSignature: 'a(oa{sv})' },
+        { name: 'GetServices', inSignature: '', outSignature: 'a(oa{sv})' }
     ],
     signals: [
         { name: 'PropertyChanged', inSignature: '{sv}' },
         { name: 'TechnologyAdded', inSignature: 'oa{sv}' },
-        { name: 'TechnologyRemoved', inSignature: 'o' }
+        { name: 'TechnologyRemoved', inSignature: 'o' },
+        { name: 'ServicesAdded', inSignature: 'a(oa{sv})' },
+        { name: 'ServicesRemoved', inSignature: 'ao' }
     ]
 };
 
@@ -100,15 +139,21 @@ function Manager() {
 
 Manager.prototype = {
     tech:[],
+    services:[],
 
     _init: function(connmgr) {
         DBus.system.proxifyObject(this, 'net.connman', '/');
 
 	this.mgr_menu = new PopupMenu.PopupMenuSection();
 	this.tech_menu = new PopupMenu.PopupMenuSection();
+	this.serv_menu = new PopupMenu.PopupMenuSection();
+
 	connmgr.menu.addMenuItem(this.mgr_menu);
 	connmgr.menu.addMenuItem(this.tech_menu);
+	connmgr.menu.addMenuItem(this.serv_menu);
+
 	this.tech_menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+	this.serv_menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
 	this.GetPropertiesRemote(Lang.bind(this,
             function(result, excp) {
@@ -134,6 +179,31 @@ Manager.prototype = {
 		this.remove_technology(path);
 	}));
 
+
+	this.GetServicesRemote(Lang.bind(this, function(result, excp) {
+	    for each (var serv in result) {
+		for each (var item in serv) {
+		    if(typeof(item) == 'string')
+			this.create_service(item);
+		};
+	    };
+	}));
+
+	this.connect('ServicesAdded', Lang.bind(this, function(sender, result) {
+	    for each (var serv in result) {
+		for each (var item in serv) {
+		    if(typeof(item) == 'string')
+			this.create_service(item);
+		};
+	    };
+	}));
+
+	this.connect('ServicesRemoved', Lang.bind(this, function(sender, result) {
+	    for each (var service in result) {
+		this.remove_service(service);
+	    };
+	}));
+
     },
 
     destroy: function() {
@@ -144,13 +214,23 @@ Manager.prototype = {
 	    obj.destroy();
 	};
 
+	while(1) {
+	    let obj = this.services.pop();
+	    if (obj == null)
+		break;
+	    obj.destroy();
+	};
+
 	this.tech = -1;
+	this.services = -1;
 	this.offline_switch.destroy();
 	this.offline_switch = null;
 	this.mgr_menu.destroy();
 	this.mgr_menu = null;
 	this.tech_menu.destroy();
 	this.tech_menu = null;
+	this.serv_menu.destroy();
+	this.serv_menu = null;
 
     },
 
@@ -194,6 +274,35 @@ Manager.prototype = {
     get_tech_index: function(path) {
 	for (var i = 0; i < this.tech.length; i++) {
 	    var obj = this.tech[i];
+	    if (obj.get_path() == path)
+		return i;
+	}
+	return -1;
+    },
+
+    create_service: function(path) {
+	let index = this.get_serv_index(path);
+	if (index != -1)
+	    return;
+
+	let obj = new Service(path, this);
+	this.services.push(obj);
+    },
+
+    remove_service: function(path) {
+	let index = this.get_serv_index(path);
+	if (index == -1)
+	    return;
+
+	let obj = this.services[index];
+	obj.destroy();
+	this.services[index] = null;
+	this.services.splice(index, 1);
+    },
+
+    get_serv_index: function(path) {
+	for (var i = 0; i < this.services.length; i++) {
+	    var obj = this.services[i];
 	    if (obj.get_path() == path)
 		return i;
 	}
