@@ -28,6 +28,58 @@ const DBus = imports.dbus;
 
 const _ = Gettext.gettext;
 
+const TechnologyIface = {
+    name: 'net.connman.Technology',
+    methods: [
+        { name: 'GetProperties', inSignature: '', outSignature: 'a{sv}' },
+        { name: 'SetProperty', inSignature: 'sv', outSignature: '' },
+        { name: 'Scan', inSignature: '', outSignature: '' }
+    ],
+    signals: [
+        { name: 'PropertyChanged', inSignature: '{sv}' }
+    ]
+};
+
+function Technology() {
+    this._init.apply(this, arguments);
+}
+
+Technology.prototype = {
+    _init: function(path, mgr) {
+        DBus.system.proxifyObject(this, 'net.connman', path);
+	this.path = path;
+
+	this.GetPropertiesRemote(Lang.bind(this,
+            function(result, excp) {
+		this.tech_switch = new PopupMenu.PopupSwitchMenuItem(result['Name'], result['Powered']);
+		this.tech_switch.connect("toggled", Lang.bind(this, this.switch_toggle));
+		mgr.mgr_menu.addMenuItem(this.tech_switch);
+	    }));
+
+	this.connect('PropertyChanged', Lang.bind(this, function(sender, str, val) {
+		    if (str == "Powered")
+			this.tech_switch.setToggleState(val);
+	}));
+    },
+
+    destroy: function() {
+	this.tech_switch.destroy();
+	this.tech_switch = null;
+	this.path = null;
+    },
+
+    switch_toggle: function(item, value) {
+	this.SetPropertyRemote("Powered", value);
+    },
+
+    get_path: function() {
+	return this.path;
+    },
+
+};
+
+DBus.proxifyPrototype(Technology.prototype, TechnologyIface);
+
 const ManagerIface = {
     name: 'net.connman.Manager',
     methods: [
@@ -47,6 +99,8 @@ function Manager() {
 }
 
 Manager.prototype = {
+    tech:[],
+
     _init: function(connmgr) {
         DBus.system.proxifyObject(this, 'net.connman', '/');
 
@@ -58,10 +112,40 @@ Manager.prototype = {
 		if (!excp)
 		    this.create_offline(result['OfflineMode']);
 	}));
+
+	this.GetTechnologiesRemote(Lang.bind(this,
+            function(result, excp) {
+		for each (var tech in result) {
+		    for each (var item in tech) {
+			if(typeof(item) == 'string')
+			    this.create_technology(item);
+		    };
+		};
+	}));
+
+	this.connect('TechnologyAdded', Lang.bind(this, function(sender, path, properties) {
+		this.create_technology(path);
+	}));
+
+	this.connect('TechnologyRemoved', Lang.bind(this, function(sender, path) {
+		this.remove_technology(path);
+	}));
+
     },
 
     destroy: function() {
+	while(1) {
+	    let obj = this.tech.pop();
+	    if (obj == null)
+		break;
+	    obj.destroy();
+	};
+
+	this.tech = -1;
+	this.offline_switch.destroy();
+	this.offline_switch = null;
 	this.mgr_menu.destroy();
+	this.mgr_menu = null;
     },
 
     create_offline: function(offline) {
@@ -72,7 +156,6 @@ Manager.prototype = {
 
 	this.connect('PropertyChanged', Lang.bind(this, function(sender, property, value) {
 	    if (property == "OfflineMode") {
-		global.log('offline property changed:' + value);
 		this.offline_switch.setToggleState(value);
 	    };
 	}));
@@ -82,6 +165,34 @@ Manager.prototype = {
 	this.SetPropertyRemote("OfflineMode", value);
     },
 
+    create_technology: function(path) {
+	let index = this.get_tech_index(path);
+	if (index != -1)
+	    return;
+
+	let obj = new Technology(path, this);
+	this.tech.push(obj);
+    },
+
+    remove_technology: function(path) {
+	let index = this.get_tech_index(path);
+	if (index == -1)
+	    return;
+
+	let obj = this.tech[index];
+	obj.destroy();
+	this.tech[index] = null;
+	this.tech.splice(index, 1);
+    },
+
+    get_tech_index: function(path) {
+	for (var i = 0; i < this.tech.length; i++) {
+	    var obj = this.tech[i];
+	    if (obj.get_path() == path)
+		return i;
+	}
+	return -1;
+    },
 };
 
 DBus.proxifyPrototype(Manager.prototype, ManagerIface);
@@ -126,12 +237,15 @@ ConnManager.prototype = {
     },
 
     ConnmanVanished: function() {
-	if (this.manager)
+	if (this.manager) {
 	    this.manager.destroy();
+	    this.manager = null;
+	}
 
 	this._mainmenu = new PopupMenu.PopupMenuSection();
 	let no_connmand = new PopupMenu.PopupMenuItem(_("Connman is not running"), { reactive: false, style_class: "section-title" });
 	this._mainmenu.addMenuItem(no_connmand);
+
 	this.menu.addMenuItem(this._mainmenu);
     },
 
