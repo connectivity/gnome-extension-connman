@@ -53,7 +53,7 @@ Technology.prototype = {
             function(result, excp) {
 		this.tech_switch = new PopupMenu.PopupSwitchMenuItem(result['Name'], result['Powered']);
 		this.tech_switch.connect("toggled", Lang.bind(this, this.switch_toggle));
-		mgr.mgr_menu.addMenuItem(this.tech_switch);
+		mgr.tech_menu.addMenuItem(this.tech_switch);
 	    }));
 
 	this.connect('PropertyChanged', Lang.bind(this, function(sender, str, val) {
@@ -105,7 +105,10 @@ Manager.prototype = {
         DBus.system.proxifyObject(this, 'net.connman', '/');
 
 	this.mgr_menu = new PopupMenu.PopupMenuSection();
+	this.tech_menu = new PopupMenu.PopupMenuSection();
 	connmgr.menu.addMenuItem(this.mgr_menu);
+	connmgr.menu.addMenuItem(this.tech_menu);
+	this.tech_menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
 	this.GetPropertiesRemote(Lang.bind(this,
             function(result, excp) {
@@ -146,6 +149,9 @@ Manager.prototype = {
 	this.offline_switch = null;
 	this.mgr_menu.destroy();
 	this.mgr_menu = null;
+	this.tech_menu.destroy();
+	this.tech_menu = null;
+
     },
 
     create_offline: function(offline) {
