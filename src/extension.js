@@ -28,6 +28,8 @@ const DBus = imports.dbus;
 
 const _ = Gettext.gettext;
 
+const MAX_SERVICES = 7;
+
 const ServiceIface = {
     name: 'net.connman.Service',
     methods: [
@@ -51,9 +53,9 @@ Service.prototype = {
 	this.path = path;
 
 	this.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
-		this._label = new St.Label({ text: result['Name'] });
-		this.addActor(this._label);
-		mgr.serv_menu.addMenuItem(this);
+	    this._label = new St.Label({ text: result['Name'] });
+	    this.addActor(this._label);
+	    mgr.add_service(this);
 	    }));
     },
 
@@ -294,6 +296,11 @@ Manager.prototype = {
 	obj.destroy();
 	this.services[index] = null;
 	this.services.splice(index, 1);
+
+	if(this.serv_menu.numMenuItems < MAX_SERVICES) {
+	    if (this.serv_sub_menu)
+		this.serv_sub_menu = null;
+	}
     },
 
     get_serv_index: function(path) {
@@ -304,6 +311,19 @@ Manager.prototype = {
 	}
 	return -1;
     },
+
+    add_service: function(service) {
+	if(this.serv_menu.numMenuItems >= MAX_SERVICES) {
+	    if(this.serv_sub_menu == null) {
+		this.serv_sub_menu = new PopupMenu.PopupSubMenuMenuItem(_("More..."));
+		this.serv_menu.addMenuItem(this.serv_sub_menu);
+	    }
+
+	    this.serv_sub_menu.menu.addMenuItem(service);
+	} else
+	    this.serv_menu.addMenuItem(service);
+    },
+
 };
 
 DBus.proxifyPrototype(Manager.prototype, ManagerIface);
