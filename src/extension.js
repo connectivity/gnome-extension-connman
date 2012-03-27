@@ -45,17 +45,16 @@ function Service() {
 }
 
 Service.prototype = {
-    __proto__: PopupMenu.PopupBaseMenuItem.prototype,
-
     _init: function(path, mgr) {
-	PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
         DBus.system.proxifyObject(this, 'net.connman', path);
+
 	this.path = path;
+	this.menuItem = new PopupMenu.PopupBaseMenuItem();
 
 	this.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
 	    this._label = new St.Label({ text: result['Name'] });
-	    this.addActor(this._label);
-	    mgr.add_service(this);
+	    this.menuItem.addActor(this._label);
+	    mgr.add_service(this.menuItem);
 	    }));
     },
 
@@ -293,7 +292,7 @@ Manager.prototype = {
 	    return;
 
 	let obj = this.services[index];
-	obj.destroy();
+	obj.menuItem.destroy();
 	this.services[index] = null;
 	this.services.splice(index, 1);
 
