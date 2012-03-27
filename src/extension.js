@@ -51,11 +51,15 @@ Service.prototype = {
 	this.path = path;
 	this.menuItem = new PopupMenu.PopupBaseMenuItem();
 
+	this.menuItem.connect('activate', Lang.bind(this, function(event) {
+	    //global.log('clicked:' + this.path);
+	}));
+
 	this.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
 	    this._label = new St.Label({ text: result['Name'] });
 	    this.menuItem.addActor(this._label);
 	    mgr.add_service(this.menuItem);
-	    }));
+	}));
     },
 
     get_path: function() {
