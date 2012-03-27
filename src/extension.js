@@ -181,26 +181,16 @@ Manager.prototype = {
 
 
 	this.GetServicesRemote(Lang.bind(this, function(result, excp) {
-	    for each (var serv in result) {
-		for each (var item in serv) {
-		    if(typeof(item) == 'string')
-			this.create_service(item);
-		};
-	    };
+	    this.create_service(result);
 	}));
 
 	this.connect('ServicesAdded', Lang.bind(this, function(sender, result) {
-	    for each (var serv in result) {
-		for each (var item in serv) {
-		    if(typeof(item) == 'string')
-			this.create_service(item);
-		};
-	    };
+	    this.create_service(result);
 	}));
 
 	this.connect('ServicesRemoved', Lang.bind(this, function(sender, result) {
-	    for each (var service in result) {
-		this.remove_service(service);
+	    for each (var path in result) {
+		this.remove_service(path);
 	    };
 	}));
 
@@ -280,13 +270,19 @@ Manager.prototype = {
 	return -1;
     },
 
-    create_service: function(path) {
-	let index = this.get_serv_index(path);
-	if (index != -1)
-	    return;
+    create_service: function(services) {
+	this.serv_menu.removeAll();
+	this.serv_menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+	this.services.splice(0, this.services.length);
 
-	let obj = new Service(path, this);
-	this.services.push(obj);
+	for each (var serv in services) {
+	    for each (var item in serv) {
+		if(typeof(item) == 'string') {
+		    let obj = new Service(item, this);
+		    this.services.push(obj);
+		};
+	    };
+	};
     },
 
     remove_service: function(path) {
