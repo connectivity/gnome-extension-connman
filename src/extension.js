@@ -29,6 +29,45 @@ const DBus = imports.dbus;
 const _ = Gettext.gettext;
 
 const MAX_SERVICES = 7;
+const AGENT_PATH = '/net/connman/agent';
+
+const AgentIface = {
+    name: 'net.connman.Agent',
+    methods: [
+        { name: 'Release', inSignature: '', outSignature: '' },
+        { name: 'ReportError', inSignature: 'os', outSignature: '' },
+        { name: 'RequestBrowser', inSignature: 'os', outSignature: '' },
+        { name: 'RequestInput', inSignature: 'oa{sv}', outSignature: 'a{sv}' },
+        { name: 'Cancel', inSignature: '', outSignature: '' }
+    ]
+};
+
+function Agent() {
+    this._init.apply(this, arguments);
+}
+
+Agent.prototype = {
+    _init: function() {
+	DBus.system.exportObject(AGENT_PATH, this);
+    },
+
+    Release: function() {
+    },
+
+    ReportError: function(service, error) {
+    },
+
+    RequestBrowser: function(service, url) {
+    },
+
+    RequestInput: function(service, fields) {
+    },
+
+    Cancel: function() {
+    }
+};
+
+DBus.conformExport(Agent.prototype, AgentIface);
 
 const ServiceIface = {
     name: 'net.connman.Service',
@@ -127,7 +166,9 @@ const ManagerIface = {
         { name: 'GetProperties', inSignature: '', outSignature: 'a{sv}' },
         { name: 'SetProperty', inSignature: 'sv', outSignature: '' },
         { name: 'GetTechnologies', inSignature: '', outSignature: 'a(oa{sv})' },
-        { name: 'GetServices', inSignature: '', outSignature: 'a(oa{sv})' }
+        { name: 'GetServices', inSignature: '', outSignature: 'a(oa{sv})' },
+        { name: 'RegisterAgent', inSignature: 'o', outSignature: '' },
+        { name: 'UnregisterAgent', inSignature: 'o', outSignature: '' }
     ],
     signals: [
         { name: 'PropertyChanged', inSignature: '{sv}' },
@@ -148,6 +189,10 @@ Manager.prototype = {
 
     _init: function(connmgr) {
         DBus.system.proxifyObject(this, 'net.connman', '/');
+
+	this.agent = new Agent();
+
+	this.RegisterAgentRemote(AGENT_PATH);
 
 	this.mgr_menu = new PopupMenu.PopupMenuSection();
 	this.tech_menu = new PopupMenu.PopupMenuSection();
@@ -216,6 +261,8 @@ Manager.prototype = {
 	    obj.destroy();
 	};
 
+	this.UnregisterAgentRemote(AGENT_PATH);
+	this.agent = null;
 	this.tech = -1;
 	this.services = -1;
 	this.offline_switch.destroy();
