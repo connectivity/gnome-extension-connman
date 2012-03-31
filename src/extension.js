@@ -125,20 +125,19 @@ function Technology() {
 }
 
 Technology.prototype = {
-    _init: function(path, mgr) {
+
+    _init: function(path, properties, mgr) {
         DBus.system.proxifyObject(this, 'net.connman', path);
 	this.path = path;
 
-	this.GetPropertiesRemote(Lang.bind(this,
-            function(result, excp) {
-		this.tech_switch = new PopupMenu.PopupSwitchMenuItem(result['Name'], result['Powered']);
-		this.tech_switch.connect("toggled", Lang.bind(this, this.switch_toggle));
-		mgr.tech_menu.addMenuItem(this.tech_switch);
-	    }));
+	this.tech_switch = new PopupMenu.PopupSwitchMenuItem(properties['Name'], properties['Powered']);
+	this.tech_switch.connect("toggled", Lang.bind(this, this.switch_toggle));
+
+	mgr.tech_menu.addMenuItem(this.tech_switch);
 
 	this.connect('PropertyChanged', Lang.bind(this, function(sender, str, val) {
-		    if (str == "Powered")
-			this.tech_switch.setToggleState(val);
+	    if (str == "Powered")
+		this.tech_switch.setToggleState(val);
 	}));
     },
 
@@ -214,15 +213,12 @@ Manager.prototype = {
 	this.GetTechnologiesRemote(Lang.bind(this,
             function(result, excp) {
 		for each (var tech in result) {
-		    for each (var item in tech) {
-			if(typeof(item) == 'string')
-			    this.create_technology(item);
-		    };
+		    this.create_technology(tech[0], tech[1]);
 		};
 	}));
 
 	this.connect('TechnologyAdded', Lang.bind(this, function(sender, path, properties) {
-		this.create_technology(path);
+	    this.create_technology(path, properties);
 	}));
 
 	this.connect('TechnologyRemoved', Lang.bind(this, function(sender, path) {
@@ -293,12 +289,12 @@ Manager.prototype = {
 	this.SetPropertyRemote("OfflineMode", value);
     },
 
-    create_technology: function(path) {
+    create_technology: function(path, properties) {
 	let index = this.get_tech_index(path);
 	if (index != -1)
 	    return;
 
-	let obj = new Technology(path, this);
+	let obj = new Technology(path, properties, this);
 	this.tech.push(obj);
     },
 
