@@ -385,6 +385,8 @@ ConnManager.prototype = {
 
     _init: function(metadata) {
         PanelMenu.Button.prototype._init.call(this, 0.0);
+	this.metadata = metadata;
+
         this.build_ui();
         DBus.system.watch_name('net.connman', null,
 			   Lang.bind(this, this.ConnmanAppeared),
@@ -393,10 +395,11 @@ ConnManager.prototype = {
     },
 
     build_ui: function() {
+	let nonetwork = Gio.icon_new_for_string(this.metadata.path + "/nonetwork.svg");
         this.icon = new St.Icon({
+	    gicon: nonetwork,
             icon_type: St.IconType.SYMBOLIC,
-            style_class: "popup-menu-icon",
-            icon_name: "network-offline"
+            icon_size: 22
         });
 
         this.main_icon = new St.BoxLayout();
