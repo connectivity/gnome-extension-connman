@@ -31,6 +31,18 @@ const _ = Gettext.gettext;
 const MAX_SERVICES = 7;
 const AGENT_PATH = '/net/connman/agent';
 
+function signalToIcon(value) {
+    if (value > 80)
+        return 'excellent';
+    if (value > 55)
+        return 'good';
+    if (value > 30)
+        return 'ok';
+    if (value > 5)
+        return 'weak';
+    return 'none';
+}
+
 const AgentIface = {
     name: 'net.connman.Agent',
     methods: [
@@ -84,25 +96,79 @@ function Service() {
 }
 
 Service.prototype = {
+    connected:false,
+
     _init: function(path, mgr) {
         DBus.system.proxifyObject(this, 'net.connman', path);
 
 	this.path = path;
 	this.menuItem = new PopupMenu.PopupBaseMenuItem();
 
-	this.menuItem.connect('activate', Lang.bind(this, function(event) {
-	    //global.log('clicked:' + this.path);
-	}));
-
 	this.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
-	    this._label = new St.Label({ text: result['Name'] });
-	    this.menuItem.addActor(this._label);
+	    this.name  = result['Name'];
+
+	    let label = new St.Label({ text: result['Name'] });
+	    this.menuItem.addActor(label);
+
+	    if(result['Type'] == 'wifi') {
+		this._icons = new St.BoxLayout({ style_class: 'nm-menu-item-icons' });
+		this.menuItem.addActor(this._icons, { align: St.Align.END });
+
+		this._signalIcon = new St.Icon({ icon_name: this._getIcon(result['Strength']),
+						 style_class: 'popup-menu-icon' });
+		this._icons.add_actor(this._signalIcon);
+
+		this._secureIcon = new St.Icon({ style_class: 'popup-menu-icon' });
+		if (result['Security'][0] == 'psk')
+		    this._secureIcon.icon_name = 'network-wireless-encrypted';
+		this._icons.add_actor(this._secureIcon);
+	    }
+
+	    this.set_state(result['State']);
+
+	    this.connect('PropertyChanged', Lang.bind(this, function(sender, str, val) {
+		if (str == 'Strength')
+		    this.set_strength(val);
+		if (str == 'State')
+		    this.set_state(val);
+
+	    }));
+
 	    mgr.add_service(this.menuItem);
+
+	    this.menuItem.connect('activate', Lang.bind(this, this.clicked));
+
 	}));
+    },
+
+    clicked: function(event) {
+	global.log(this.name + ':' + this.connected);
+    },
+
+    set_strength: function(strength) {
+	this._signalIcon.icon_name = this._getIcon(strength);
+    },
+
+    set_state: function(state) {
+	if (state == 'online' || state == 'ready') {
+	    this.menuItem.setShowDot(true);
+	    this.connected = true;
+	} else {
+	    this.menuItem.setShowDot(false);
+	    this.connected = false;
+	}
     },
 
     get_path: function() {
 	return this.path;
+    },
+
+    _getIcon: function(strength) {
+	return 'network-wireless-signal-' + signalToIcon(strength);
+    },
+
+    property_changed: function(sender, str, val) {
+
     },
 };
 
