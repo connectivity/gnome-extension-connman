@@ -25,11 +25,13 @@ const PanelMenu = imports.ui.panelMenu;
 const Gettext = imports.gettext;
 const Clutter = imports.gi.Clutter;
 const DBus = imports.dbus;
-
+const ModalDialog = imports.ui.modalDialog;
+const ShellEntry = imports.ui.shellEntry;
 const _ = Gettext.gettext;
 
 const MAX_SERVICES = 7;
 const AGENT_PATH = '/net/connman/agent';
+const DIALOG_TIMEOUT = 20*1000;
 
 function signalToIcon(value) {
     if (value > 80)
@@ -42,6 +44,103 @@ function signalToIcon(value) {
         return 'weak';
     return 'none';
 }
+
+function PassphraseDialog() {
+    this._init.apply(this, arguments);
+}
+
+PassphraseDialog.prototype = {
+    __proto__: ModalDialog.ModalDialog.prototype,
+
+    _init: function(agent) {
+        ModalDialog.ModalDialog.prototype._init.call(this, { styleClass: 'polkit-dialog' });
+
+	this.agent = agent;
+        let mainContentBox = new St.BoxLayout({ style_class: 'polkit-dialog-main-layout',
+                                                vertical: false });
+        this.contentLayout.add(mainContentBox,
+                               { x_fill: true,
+                                 y_fill: true });
+
+        let icon = new St.Icon({ icon_name: 'dialog-password-symbolic' });
+        mainContentBox.add(icon,
+                           { x_fill:  true,
+                             y_fill:  false,
+                             x_align: St.Align.END,
+                             y_align: St.Align.START });
+
+        let messageBox = new St.BoxLayout({ style_class: 'polkit-dialog-message-layout',
+                                            vertical: true });
+        mainContentBox.add(messageBox,
+                           { y_align: St.Align.START });
+
+        let subjectLabel = new St.Label({ style_class: 'polkit-dialog-headline',
+                                            text: "Authentication required by wireless network" });
+        messageBox.add(subjectLabel,
+                       { y_fill:  false,
+                         y_align: St.Align.START });
+
+        let descriptionLabel = new St.Label({ style_class: 'polkit-dialog-description',
+                                              text:"Passwords or encryption keys are required to access the wireless network",
+                                                  // HACK: for reasons unknown to me, the label
+                                                  // is not asked the correct height for width,
+                                                  // and thus is underallocated
+                                                  // place a fixed height to avoid overflowing
+                                                  style: 'height: 3em'
+                                                });
+        descriptionLabel.clutter_text.line_wrap = true;
+
+        messageBox.add(descriptionLabel,
+                       { y_fill:  true,
+                         y_align: St.Align.START,
+                         expand: true });
+
+        this._passwordBox = new St.BoxLayout({ vertical: false });
+        messageBox.add(this._passwordBox);
+        this._passwordLabel = new St.Label(({ style_class: 'polkit-dialog-password-label' }));
+        this._passwordBox.add(this._passwordLabel);
+        this._passwordEntry = new St.Entry({ style_class: 'polkit-dialog-password-entry',
+                                             text: "",
+                                             can_focus: true});
+        ShellEntry.addContextMenu(this._passwordEntry, { isPassword: true });
+
+        this._passwordEntry.clutter_text.connect('activate', Lang.bind(this, this._onOk));
+        this._passwordBox.add(this._passwordEntry,
+                              {expand: true });
+        this.setInitialKeyFocus(this._passwordEntry);
+	this._passwordEntry.clutter_text.set_password_char('\u25cf');
+
+
+        this._okButton = { label:  _("Connect"),
+                           action: Lang.bind(this, this._onOk),
+                           key:    Clutter.KEY_Return,
+                         };
+
+        this.setButtons([{ label: _("Cancel"),
+                           action: Lang.bind(this, this.cancel),
+                           key:    Clutter.KEY_Escape,
+                         },
+                         this._okButton]);
+    },
+
+    _onOk: function() {
+	this.agent.obj.Passphrase = this._passwordEntry.get_text();
+	this.close();
+	this.destroy();
+	Mainloop.source_remove(this.agent.timeout);
+	Mainloop.quit('agent');
+    },
+
+    cancel: function() {
+	this.agent.obj.Passphrase = 'cancel';
+	this.close();
+	this.destroy();
+	Mainloop.source_remove(this.agent.timeout);
+	Mainloop.quit('agent');
+    },
+
+};
+
 
 const AgentIface = {
     name: 'net.connman.Agent',
@@ -73,6 +172,25 @@ Agent.prototype = {
     },
 
     RequestInput: function(service, fields) {
+	this.obj = new Object();
+
+	this.dialog = new PassphraseDialog(this);
+
+	this.dialog.open(global.get_current_time());
+
+	this.timeout = Mainloop.timeout_add(DIALOG_TIMEOUT, Lang.bind(this, function(){
+	    this.obj.Passphrase = 'inside';
+	    this.dialog.close();
+	    this.dialog.destroy();
+	    Mainloop.source_remove(this.timeout);
+	    Mainloop.quit('agent');
+
+	}));
+
+	Mainloop.run('agent');
+
+	global.log('returning:' + this.obj.Passphrase);
+	return this.obj;
     },
 
     Cancel: function() {
@@ -84,7 +202,9 @@ DBus.conformExport(Agent.prototype, AgentIface);
 const ServiceIface = {
     name: 'net.connman.Service',
     methods: [
-        { name: 'GetProperties', inSignature: '', outSignature: 'a{sv}' }
+        { name: 'GetProperties', inSignature: '', outSignature: 'a{sv}' },
+        { name: 'Connect', inSignature: '', outSignature: '' },
+        { name: 'Disconnect', inSignature: '', outSignature: '' }
     ],
     signals: [
         { name: 'PropertyChanged', inSignature: '{sv}' }
@@ -142,7 +262,10 @@ Service.prototype = {
     },
 
     clicked: function(event) {
-	global.log(this.name + ':' + this.connected);
+	if (this.connected == false)
+	    this.ConnectRemote();
+	else
+	    this.DisconnectRemote();
     },
 
     set_strength: function(strength) {
