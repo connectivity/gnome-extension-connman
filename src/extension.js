@@ -394,7 +394,6 @@ Manager.prototype = {
     _init: function(connmgr) {
         DBus.system.proxifyObject(this, 'net.connman', '/');
 	this.connmgr = connmgr;
-	this.agent = new Agent();
 
 	this.RegisterAgentRemote(AGENT_PATH);
 
@@ -605,7 +604,7 @@ ConnManager.prototype = {
     _init: function(metadata) {
         PanelMenu.Button.prototype._init.call(this, 0.0);
 	this.metadata = metadata;
-
+	this.agent = new Agent();
         this.build_ui();
         DBus.system.watch_name('net.connman', null,
 			   Lang.bind(this, this.ConnmanAppeared),
