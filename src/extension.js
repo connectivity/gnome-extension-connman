@@ -227,20 +227,21 @@ Service.prototype = {
 	this.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
 	    this.name  = result['Name'];
 
-	    let label = new St.Label({ text: result['Name'] });
-	    this.menuItem.addActor(label);
+	    this.label = new St.Label();
+	    this.menuItem.addActor(this.label);
 
-	    if(result['Type'] == 'wifi') {
-		this._icons = new St.BoxLayout({ style_class: 'nm-menu-item-icons' });
-		this.menuItem.addActor(this._icons, { align: St.Align.END });
+	    this.set_label(result['Favorite']);
 
-		this._signalIcon = new St.Icon({ icon_name: this._getIcon(result['Strength']),
+	    this._icons = new St.BoxLayout({ style_class: 'nm-menu-item-icons' });
+	    this.menuItem.addActor(this._icons, { align: St.Align.END });
+
+	    this._signalIcon = new St.Icon({ icon_name: this._getIcon(result['Type'], result['Strength']),
 						 style_class: 'popup-menu-icon' });
-		this._icons.add_actor(this._signalIcon);
+	    this._icons.add_actor(this._signalIcon);
 
+	    if (result['Type'] == 'wifi' && result['Security'][0] == 'psk') {
 		this._secureIcon = new St.Icon({ style_class: 'popup-menu-icon' });
-		if (result['Security'][0] == 'psk')
-		    this._secureIcon.icon_name = 'network-wireless-encrypted';
+		this._secureIcon.icon_name = 'network-wireless-encrypted';
 		this._icons.add_actor(this._secureIcon);
 	    }
 
@@ -251,7 +252,8 @@ Service.prototype = {
 		    this.set_strength(val);
 		if (str == 'State')
 		    this.set_state(val);
-
+		if (str == 'Favorite')
+		    this.set_label(val);
 	    }));
 
 	    mgr.add_service(this.menuItem);
@@ -266,6 +268,13 @@ Service.prototype = {
 	    this.ConnectRemote();
 	else
 	    this.DisconnectRemote();
+    },
+
+    set_label: function(favorite) {
+	if (favorite == true)
+		this.label.clutter_text.set_markup('<b>' + this.name + '</b>');
+	else
+		this.label.clutter_text.set_markup(this.name);
     },
 
     set_strength: function(strength) {
@@ -286,8 +295,15 @@ Service.prototype = {
 	return this.path;
     },
 
-    _getIcon: function(strength) {
-	return 'network-wireless-signal-' + signalToIcon(strength);
+    _getIcon: function(type, strength) {
+	if (type == 'ethernet')
+	    return 'network-wired-symbolic';
+	else if (type == 'cellular')
+	    return 'network-cellular-3g-symbolic';
+	else if (type == 'bluetooth')
+	    return 'bluetooth-active-symbolic';
+	else (type == 'wifi')
+	    return 'network-wireless-signal-' + signalToIcon(strength);
     },
 
     property_changed: function(sender, str, val) {
