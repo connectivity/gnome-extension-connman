@@ -378,8 +378,7 @@ const ManagerIface = {
         { name: 'PropertyChanged', inSignature: '{sv}' },
         { name: 'TechnologyAdded', inSignature: 'oa{sv}' },
         { name: 'TechnologyRemoved', inSignature: 'o' },
-        { name: 'ServicesAdded', inSignature: 'a(oa{sv})' },
-        { name: 'ServicesRemoved', inSignature: 'ao' }
+        { name: 'ServicesChanged', inSignature: 'a(oa{sv})ao' }
     ]
 };
 
@@ -434,16 +433,14 @@ Manager.prototype = {
 	    this.create_service(result);
 	}));
 
-	this.connect('ServicesAdded', Lang.bind(this, function(sender, result) {
-	    this.create_service(result);
+	this.connect('ServicesChanged', Lang.bind(this, function(sender, added, removed) {
+	    if (added[0] != null)
+		this.create_service(added);
+	    else {
+		for each (var path in removed)
+		    this.remove_service(path);
+	    }
 	}));
-
-	this.connect('ServicesRemoved', Lang.bind(this, function(sender, result) {
-	    for each (var path in result) {
-		this.remove_service(path);
-	    };
-	}));
-
     },
 
     destroy: function() {
