@@ -31,7 +31,7 @@ const _ = Gettext.gettext;
 
 const MAX_SERVICES = 7;
 const AGENT_PATH = '/net/connman/agent';
-const DIALOG_TIMEOUT = 20*1000;
+const DIALOG_TIMEOUT = 120*1000;
 
 function signalToIcon(value) {
     if (value > 80)
