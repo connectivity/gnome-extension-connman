@@ -182,7 +182,7 @@ Agent.prototype = {
 	this.dialog.open(global.get_current_time());
 
 	this.timeout = Mainloop.timeout_add(DIALOG_TIMEOUT, Lang.bind(this, function(){
-	    this.obj.Passphrase = 'inside';
+	    this.obj.Passphrase = '';
 	    this.dialog.close();
 	    this.dialog.destroy();
 	    Mainloop.source_remove(this.timeout);
