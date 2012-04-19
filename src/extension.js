@@ -365,7 +365,6 @@ Technology.prototype = {
     get_path: function() {
 	return this.path;
     },
-
 };
 
 DBus.proxifyPrototype(Technology.prototype, TechnologyIface);
@@ -539,6 +538,15 @@ Manager.prototype = {
 	return -1;
     },
 
+    get_tech_path: function(path) {
+	for (var i = 0; i < this.tech.length; i++) {
+	    var obj = this.tech[i];
+	    if (obj.get_path() == path)
+		return obj;
+	}
+	return null;
+    },
+
     create_service: function(services) {
 	this.serv_menu.removeAll();
 	this.serv_menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
@@ -611,6 +619,7 @@ ConnManager.prototype = {
     __proto__: PanelMenu.Button.prototype,
 
     run: false,
+    open:false,
 
     _init: function(metadata) {
         PanelMenu.Button.prototype._init.call(this, 0.0);
@@ -621,6 +630,7 @@ ConnManager.prototype = {
 			   Lang.bind(this, this.ConnmanAppeared),
 			   Lang.bind(this, this.ConnmanVanished)
         );
+        this.actor.connect('button-press-event', Lang.bind(this, this.menuopen));
     },
 
     build_ui: function() {
@@ -668,6 +678,19 @@ ConnManager.prototype = {
         this.run = false;
         Main.panel._rightBox.remove_actor(this.actor);
         Main.panel._menus.removeMenu(this.menu);
+    },
+
+    menuopen: function() {
+	if (this.open == false) {
+	    if (this.manager) {
+		let wifi = this.manager.get_tech_path('/net/connman/technology/wifi');
+		if (wifi)
+		    wifi.ScanRemote();
+	    }
+	    this.open = true;
+	} else {
+	    this.open = false;
+	}
     },
 }
 
