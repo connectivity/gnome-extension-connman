@@ -52,7 +52,7 @@ function PassphraseDialog() {
 PassphraseDialog.prototype = {
     __proto__: ModalDialog.ModalDialog.prototype,
 
-    _init: function(agent) {
+    _init: function(agent, ssid) {
         ModalDialog.ModalDialog.prototype._init.call(this, { styleClass: 'polkit-dialog' });
 
 	this.agent = agent;
@@ -81,7 +81,7 @@ PassphraseDialog.prototype = {
                          y_align: St.Align.START });
 
         let descriptionLabel = new St.Label({ style_class: 'polkit-dialog-description',
-                                              text:"Passwords or encryption keys are required to access the wireless network",
+                                              text:"Passwords or encryption keys are required to access the wireless network " + ssid,
                                                   // HACK: for reasons unknown to me, the label
                                                   // is not asked the correct height for width,
                                                   // and thus is underallocated
@@ -158,7 +158,8 @@ function Agent() {
 }
 
 Agent.prototype = {
-    _init: function() {
+    _init: function(connmgr) {
+	this.connmgr = connmgr;
 	DBus.system.exportObject(AGENT_PATH, this);
     },
 
@@ -174,7 +175,9 @@ Agent.prototype = {
     RequestInput: function(service, fields) {
 	this.obj = new Object();
 
-	this.dialog = new PassphraseDialog(this);
+	let ssid = this.connmgr.manager.get_serv_name(service);
+
+	this.dialog = new PassphraseDialog(this, ssid);
 
 	this.dialog.open(global.get_current_time());
 
@@ -189,7 +192,6 @@ Agent.prototype = {
 
 	Mainloop.run('agent');
 
-	global.log('returning:' + this.obj.Passphrase);
 	return this.obj;
     },
 
@@ -293,6 +295,10 @@ Service.prototype = {
 
     get_path: function() {
 	return this.path;
+    },
+
+    get_name: function() {
+	return this.name;
     },
 
     _getIcon: function(type, strength) {
@@ -585,6 +591,14 @@ Manager.prototype = {
 	    this.serv_menu.addMenuItem(service);
     },
 
+    get_serv_name: function(path) {
+	for (var i = 0; i < this.services.length; i++) {
+	    var obj = this.services[i];
+	    if (obj.get_path() == path)
+		return obj.get_name();
+	}
+	return null;
+    },
 };
 
 DBus.proxifyPrototype(Manager.prototype, ManagerIface);
@@ -601,7 +615,7 @@ ConnManager.prototype = {
     _init: function(metadata) {
         PanelMenu.Button.prototype._init.call(this, 0.0);
 	this.metadata = metadata;
-	this.agent = new Agent();
+	this.agent = new Agent(this);
         this.build_ui();
         DBus.system.watch_name('net.connman', null,
 			   Lang.bind(this, this.ConnmanAppeared),
