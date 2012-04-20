@@ -175,7 +175,6 @@ Agent.prototype = {
 
 	let ssid = this.connmgr.manager.get_serv_name(service);
 	let content = 'Unable to connecte to ' + ssid + ' : ' + error;
-	global.log(content);
 	let notification = new MessageTray.Notification(source, content, null);
 	notification.setTransient(true);
 	source.notify(notification);
