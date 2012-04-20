@@ -327,6 +327,10 @@ Service.prototype = {
     property_changed: function(sender, str, val) {
 
     },
+
+    destroy: function() {
+	this.menuItem.destroy();
+    },
 };
 
 DBus.proxifyPrototype(Service.prototype, ServiceIface);
@@ -487,7 +491,6 @@ Manager.prototype = {
 	this.tech_menu = null;
 	this.serv_menu.destroy();
 	this.serv_menu = null;
-
     },
 
     create_offline: function(offline) {
