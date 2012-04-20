@@ -249,15 +249,15 @@ Service.prototype = {
 	    this._icons = new St.BoxLayout({ style_class: 'nm-menu-item-icons' });
 	    this.menuItem.addActor(this._icons, { align: St.Align.END });
 
-	    this._signalIcon = new St.Icon({ icon_name: this._getIcon(result['Type'], result['Strength']),
-						 style_class: 'popup-menu-icon' });
-	    this._icons.add_actor(this._signalIcon);
-
 	    if (result['Type'] == 'wifi' && result['Security'][0] == 'psk') {
 		this._secureIcon = new St.Icon({ style_class: 'popup-menu-icon' });
 		this._secureIcon.icon_name = 'network-wireless-encrypted';
 		this._icons.add_actor(this._secureIcon);
 	    }
+
+	    this._signalIcon = new St.Icon({ icon_name: this._getIcon(result['Type'], result['Strength']),
+						 style_class: 'popup-menu-icon' });
+	    this._icons.add_actor(this._signalIcon);
 
 	    this.set_state(result['State']);
 
