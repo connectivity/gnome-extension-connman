@@ -249,7 +249,7 @@ Service.prototype = {
 	    this._icons = new St.BoxLayout({ style_class: 'nm-menu-item-icons' });
 	    this.menuItem.addActor(this._icons, { align: St.Align.END });
 
-	    if (result['Type'] == 'wifi' && result['Security'][0] == 'psk') {
+	    if (result['Type'] == 'wifi' && result['Security'][0] != 'none') {
 		this._secureIcon = new St.Icon({ style_class: 'popup-menu-icon' });
 		this._secureIcon.icon_name = 'network-wireless-encrypted';
 		this._icons.add_actor(this._secureIcon);
