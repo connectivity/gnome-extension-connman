@@ -27,6 +27,7 @@ const Clutter = imports.gi.Clutter;
 const DBus = imports.dbus;
 const ModalDialog = imports.ui.modalDialog;
 const ShellEntry = imports.ui.shellEntry;
+const MessageTray = imports.ui.messageTray;
 const _ = Gettext.gettext;
 
 const MAX_SERVICES = 7;
@@ -160,6 +161,7 @@ function Agent() {
 Agent.prototype = {
     _init: function(connmgr) {
 	this.connmgr = connmgr;
+
 	DBus.system.exportObject(AGENT_PATH, this);
     },
 
@@ -167,6 +169,16 @@ Agent.prototype = {
     },
 
     ReportError: function(service, error) {
+	let source = new MessageTray.SystemNotificationSource();
+	let messageTray = new MessageTray.MessageTray();
+	messageTray.add(source);
+
+	let ssid = this.connmgr.manager.get_serv_name(service);
+	let content = 'Unable to connecte to ' + ssid + ' : ' + error;
+	global.log(content);
+	let notification = new MessageTray.Notification(source, content, null);
+	notification.setTransient(true);
+	source.notify(notification);
     },
 
     RequestBrowser: function(service, url) {
