@@ -331,7 +331,7 @@ Service.prototype = {
 	else if (type == 'bluetooth')
 	    return 'bluetooth-active-symbolic';
 	else (type == 'wifi')
-	    return 'network-wireless-signal-' + signalToIcon(strength);
+	    return 'network-wireless-signal-' + signalToIcon(strength) + '-symbolic';
     },
 
     property_changed: function(sender, str, val) {
