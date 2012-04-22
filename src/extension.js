@@ -327,7 +327,7 @@ Service.prototype = {
 	if (type == 'ethernet')
 	    return 'network-wired-symbolic';
 	else if (type == 'cellular')
-	    return 'network-cellular-3g-symbolic';
+	    return 'network-cellular-signal-' + signalToIcon(strength) + '-symbolic';
 	else if (type == 'bluetooth')
 	    return 'bluetooth-active-symbolic';
 	else (type == 'wifi')
