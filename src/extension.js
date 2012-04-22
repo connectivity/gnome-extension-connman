@@ -230,35 +230,17 @@ function Service() {
 
 Service.prototype = {
     connected:false,
-
     _init: function(path, mgr) {
         DBus.system.proxifyObject(this, 'net.connman', path);
 
 	this.path = path;
-	this.menuItem = new PopupMenu.PopupBaseMenuItem();
-
 	this.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
 	    this.name  = result['Name'];
-
-	    this.label = new St.Label();
-	    this.menuItem.addActor(this.label);
-
-	    this.set_label(result['Favorite']);
-
-	    this._icons = new St.BoxLayout({ style_class: 'nm-menu-item-icons' });
-	    this.menuItem.addActor(this._icons, { align: St.Align.END });
-
-	    if (result['Type'] == 'wifi' && result['Security'][0] != 'none') {
-		this._secureIcon = new St.Icon({ style_class: 'popup-menu-icon' });
-		this._secureIcon.icon_name = 'network-wireless-encrypted';
-		this._icons.add_actor(this._secureIcon);
-	    }
-
-	    this._signalIcon = new St.Icon({ icon_name: this._getIcon(result['Type'], result['Strength']),
-						 style_class: 'popup-menu-icon' });
-	    this._icons.add_actor(this._signalIcon);
-
-	    this.set_state(result['State']);
+	    this.favorite = result['Favorite'];
+	    this.state = result['State'];
+	    this.type = result['Type'];
+	    this.security = result['Security'];
+	    this.strength = result['Strength'];
 
 	    this.connect('PropertyChanged', Lang.bind(this, function(sender, str, val) {
 		if (str == 'Strength')
@@ -269,11 +251,35 @@ Service.prototype = {
 		    this.set_label(val);
 	    }));
 
-	    mgr.add_service(this.menuItem);
-
-	    this.menuItem.connect('activate', Lang.bind(this, this.clicked));
-
+	    this.add_menuItem(mgr);
 	}));
+    },
+
+    add_menuItem: function(mgr) {
+	this.menuItem = new PopupMenu.PopupBaseMenuItem();
+	this.label = new St.Label();
+	this.menuItem.addActor(this.label);
+
+	this.set_label(this.favorite);
+
+	this._icons = new St.BoxLayout({ style_class: 'nm-menu-item-icons' });
+	this.menuItem.addActor(this._icons, { align: St.Align.END });
+
+	if (this.type == 'wifi' && this.security[0] != 'none') {
+		this._secureIcon = new St.Icon({ style_class: 'popup-menu-icon' });
+		this._secureIcon.icon_name = 'network-wireless-encrypted';
+		this._icons.add_actor(this._secureIcon);
+	    }
+
+	this._signalIcon = new St.Icon({ icon_name: this._getIcon(this.type, this.strength),
+						 style_class: 'popup-menu-icon' });
+	this._icons.add_actor(this._signalIcon);
+
+	this.set_state(this.state);
+
+	this.menuItem.connect('activate', Lang.bind(this, this.clicked));
+
+	mgr.add_service(this.menuItem);
     },
 
     clicked: function(event) {
@@ -284,6 +290,7 @@ Service.prototype = {
     },
 
     set_label: function(favorite) {
+	this.favorite = favorite;
 	if (favorite == true)
 		this.label.clutter_text.set_markup('<b>' + this.name + '</b>');
 	else
@@ -291,10 +298,12 @@ Service.prototype = {
     },
 
     set_strength: function(strength) {
+	this.strength = strength;
 	this._signalIcon.icon_name = this._getIcon(strength);
     },
 
     set_state: function(state) {
+	this.state = state;
 	if (state == 'online' || state == 'ready') {
 	    this.menuItem.setShowDot(true);
 	    this.connected = true;
@@ -564,13 +573,17 @@ Manager.prototype = {
     create_service: function(services) {
 	this.serv_menu.removeAll();
 	this.serv_menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-	this.services.splice(0, this.services.length);
 
 	for each (var serv in services) {
 	    for each (var item in serv) {
 		if(typeof(item) == 'string') {
-		    let obj = new Service(item, this);
-		    this.services.push(obj);
+		    let service = this.get_service(item);
+		    if (service == null) {
+			service = new Service(item, this);
+			this.services.push(service);
+		    } else {
+			service.add_menuItem(this);
+		    }
 		};
 	    };
 	};
@@ -599,6 +612,15 @@ Manager.prototype = {
 		return i;
 	}
 	return -1;
+    },
+
+    get_service: function(path) {
+	for (var i = 0; i < this.services.length; i++) {
+	    var obj = this.services[i];
+	    if (obj.get_path() == path)
+		return obj;
+	}
+	return null;
     },
 
     add_service: function(service) {
