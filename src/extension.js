@@ -236,6 +236,8 @@ Service.prototype = {
 	this.path = path;
 	this.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
 	    this.name  = result['Name'];
+	    if (this.name == '')
+		this.name = result['Type'];
 	    this.favorite = result['Favorite'];
 	    this.state = result['State'];
 	    this.type = result['Type'];
