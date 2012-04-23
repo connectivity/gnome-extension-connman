@@ -265,6 +265,8 @@ Service.prototype = {
 		    this.set_state(val);
 		if (str == 'Favorite')
 		    this.set_label(val);
+		if (str == 'Name')
+		    this.set_name(val);
 	    }));
 
 	    this.add_menuItem(mgr);
@@ -318,6 +320,11 @@ Service.prototype = {
 	this._signalIcon.icon_name = getIcon(this.type, strength);
 	if (this.connected)
 	    this.mgr.set_status_stregth(this.type, strength);
+    },
+
+    set_name: function(name) {
+	this.name = name;
+	this.set_label(this.favorite);
     },
 
     set_state: function(state) {
