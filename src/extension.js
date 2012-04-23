@@ -46,6 +46,17 @@ function signalToIcon(value) {
     return 'none';
 }
 
+function getIcon(type, strength) {
+    if (type == 'ethernet')
+	return 'network-wired-symbolic';
+    else if (type == 'cellular')
+	return 'network-cellular-signal-' + signalToIcon(strength) + '-symbolic';
+    else if (type == 'bluetooth')
+	return 'bluetooth-active-symbolic';
+    else (type == 'wifi')
+	return 'network-wireless-signal-' + signalToIcon(strength) + '-symbolic';
+}
+
 function PassphraseDialog() {
     this._init.apply(this, arguments);
 }
@@ -232,17 +243,20 @@ Service.prototype = {
     connected:false,
     _init: function(path, mgr) {
         DBus.system.proxifyObject(this, 'net.connman', path);
-
+	this.mgr = mgr;
 	this.path = path;
 	this.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
 	    this.name  = result['Name'];
-	    if (this.name == '')
-		this.name = result['Type'];
 	    this.favorite = result['Favorite'];
 	    this.state = result['State'];
 	    this.type = result['Type'];
 	    this.security = result['Security'];
 	    this.strength = result['Strength'];
+
+	    if (this.name == '' && this.type == 'cellular')
+		this.name = this.type;
+	    if (this.name == null && this.type == 'wifi')
+		this.name = 'Hidden';
 
 	    this.connect('PropertyChanged', Lang.bind(this, function(sender, str, val) {
 		if (str == 'Strength')
@@ -273,7 +287,7 @@ Service.prototype = {
 		this._icons.add_actor(this._secureIcon);
 	    }
 
-	this._signalIcon = new St.Icon({ icon_name: this._getIcon(this.type, this.strength),
+	this._signalIcon = new St.Icon({ icon_name: getIcon(this.type, this.strength),
 						 style_class: 'popup-menu-icon' });
 	this._icons.add_actor(this._signalIcon);
 
@@ -301,18 +315,31 @@ Service.prototype = {
 
     set_strength: function(strength) {
 	this.strength = strength;
-	this._signalIcon.icon_name = this._getIcon(strength);
+	this._signalIcon.icon_name = getIcon(this.type, strength);
+	if (this.connected)
+	    this.mgr.set_status_stregth(this.type, strength);
     },
 
     set_state: function(state) {
 	this.state = state;
+
 	if (state == 'online' || state == 'ready') {
 	    this.menuItem.setShowDot(true);
 	    this.connected = true;
-	} else {
+	    this.mgr.autoset_status_icon();
+	    return;
+	}
+
+	if (this.connected == true) {
 	    this.menuItem.setShowDot(false);
 	    this.connected = false;
 	}
+
+	if (state == 'association' || state == 'configuration')
+	    this.mgr.set_status_config(this.type);
+
+	if (state == 'disconnect')
+	    this.mgr.autoset_status_icon();
     },
 
     get_path: function() {
@@ -321,17 +348,6 @@ Service.prototype = {
 
     get_name: function() {
 	return this.name;
-    },
-
-    _getIcon: function(type, strength) {
-	if (type == 'ethernet')
-	    return 'network-wired-symbolic';
-	else if (type == 'cellular')
-	    return 'network-cellular-signal-' + signalToIcon(strength) + '-symbolic';
-	else if (type == 'bluetooth')
-	    return 'bluetooth-active-symbolic';
-	else (type == 'wifi')
-	    return 'network-wireless-signal-' + signalToIcon(strength) + '-symbolic';
     },
 
     property_changed: function(sender, str, val) {
@@ -424,7 +440,7 @@ Manager.prototype = {
     _init: function(connmgr) {
         DBus.system.proxifyObject(this, 'net.connman', '/');
 	this.connmgr = connmgr;
-
+	this.status_icon_type = null;
 	this.RegisterAgentRemote(AGENT_PATH);
 
 	this.mgr_menu = new PopupMenu.PopupMenuSection();
@@ -465,12 +481,9 @@ Manager.prototype = {
 	}));
 
 	this.connect('ServicesChanged', Lang.bind(this, function(sender, added, removed) {
-	    if (added[0] != null)
-		this.create_service(added);
-	    else {
-		for each (var path in removed)
+	    this.create_service(added);
+	    for each (var path in removed)
 		    this.remove_service(path);
-	    }
 	}));
     },
 
@@ -520,6 +533,32 @@ Manager.prototype = {
 	this.SetPropertyRemote("OfflineMode", value);
     },
 
+    set_status_config: function(type) {
+	    if (type == 'wifi')
+		this.connmgr.icon.icon_name = 'network-wireless-acquiring-symbolic';
+	    if (type == 'cellular')
+		this.connmgr.icon.icon_name = 'network-cellular-acquiring-symbolic';
+	    if (type == 'ethernet')
+		this.connmgr.icon.icon_name = 'network-wired-acquiring-symbolic';
+    },
+
+    set_status_strength: function(type, strength) {
+	if (this.status_icon_type == type)
+	    this.connmgr.icon.icon_name = getIcon(type, strength);
+    },
+
+    autoset_status_icon: function() {
+	for (var i = 0; i < this.services.length; i++) {
+	    let service  = this.services[i];
+	    if (service.state == 'ready' || service.state == 'online') {
+		this.status_icon_type = service.type;
+		this.connmgr.icon.icon_name = getIcon(service.type, service.strength);
+		return;
+	    }
+	}
+	this.connmgr.icon.icon_name = 'network-offline-symbolic';
+    },
+
     create_technology: function(path, properties) {
 	let index = this.get_tech_index(path);
 	if (index != -1)
@@ -560,6 +599,13 @@ Manager.prototype = {
 
     create_service: function(services) {
 	this.serv_menu.removeAll();
+
+	if (this.serv_sub_menu) {
+	    this.serv_sub_menu.menu.removeAll();
+	    this.serv_sub_menu.destroy();
+	    this.serv_sub_menu = null;
+	}
+
 	this.serv_menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
 	for each (var serv in services) {
@@ -572,9 +618,9 @@ Manager.prototype = {
 		    } else {
 			service.add_menuItem(this);
 		    }
-		};
-	    };
-	};
+		}
+	    }
+	}
     },
 
     remove_service: function(path) {
@@ -588,8 +634,10 @@ Manager.prototype = {
 	this.services.splice(index, 1);
 
 	if(this.serv_menu.numMenuItems < MAX_SERVICES) {
-	    if (this.serv_sub_menu)
+	    if (this.serv_sub_menu) {
+		this.serv_sub_menu.destroy();
 		this.serv_sub_menu = null;
+	    }
 	}
     },
 
