@@ -739,6 +739,8 @@ ConnManager.prototype = {
 	    this.manager = null;
 	}
 
+	this.icon.icon_name = 'network-offline-symbolic';
+
 	this._mainmenu = new PopupMenu.PopupMenuSection();
 	let no_connmand = new PopupMenu.PopupMenuItem(_("Connman is not running"), { reactive: false, style_class: "section-title" });
 	this._mainmenu.addMenuItem(no_connmand);
