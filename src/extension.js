@@ -509,29 +509,15 @@ Manager.prototype = {
 
 	this.mgr_menu.addMenuItem(this.offline_switch);
 
-	this.set_offline_icon(offline);
-
 	this.connect('PropertyChanged', Lang.bind(this, function(sender, property, value) {
 	    if (property == "OfflineMode") {
 		this.offline_switch.setToggleState(value);
-		this.set_offline_icon(value);
 	    };
 	}));
     },
 
     offline_toggle: function(item, value) {
 	this.SetPropertyRemote("OfflineMode", value);
-    },
-
-    set_offline_icon: function(offline) {
-	let icon = null;
-
-	if (offline)
-	    icon = Gio.icon_new_for_string(this.connmgr.metadata.path + "/flightmode.svg");
-	else
-	    icon = Gio.icon_new_for_string(this.connmgr.metadata.path + "/nonetwork.svg");
-
-	this.connmgr.icon.gicon = icon;
     },
 
     create_technology: function(path, properties) {
@@ -672,11 +658,10 @@ ConnManager.prototype = {
     },
 
     build_ui: function() {
-	let nonetwork = Gio.icon_new_for_string(this.metadata.path + "/nonetwork.svg");
         this.icon = new St.Icon({
-	    gicon: nonetwork,
-            icon_type: St.IconType.SYMBOLIC,
-            icon_size: 22
+	    icon_name: 'network-offline-symbolic',
+	    style_class: "popup-menu-icon",
+            icon_type: St.IconType.SYMBOLIC
         });
 
         this.main_icon = new St.BoxLayout();

@@ -4,7 +4,7 @@ topextensiondir = $(datadir)/gnome-shell/extensions
 extensiondir = $(topextensiondir)/$(uuid)
 uuid = connection-manager@intel-otc
 
-dist_extension_DATA = extension.js icons/*
+dist_extension_DATA = extension.js
 nodist_extension_DATA = metadata.json $(EXTRA_EXTENSION)
 
 EXTRA_DIST = metadata.json.in
