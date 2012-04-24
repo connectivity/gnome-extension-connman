@@ -257,7 +257,7 @@ Service.prototype = {
 		this.name = this.type;
 	    if (this.name == null && this.type == 'wifi') {
 		this.hidden = true;
-		this.name = 'Hidden';
+		this.name = 'Connect to hidden...';
 	    }
 	    this.connect('PropertyChanged', Lang.bind(this, function(sender, str, val) {
 		if (str == 'Strength')
