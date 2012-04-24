@@ -64,10 +64,12 @@ function PassphraseDialog() {
 PassphraseDialog.prototype = {
     __proto__: ModalDialog.ModalDialog.prototype,
 
-    _init: function(agent, ssid) {
+    _init: function(agent, fields, ssid) {
         ModalDialog.ModalDialog.prototype._init.call(this, { styleClass: 'polkit-dialog' });
 
 	this.agent = agent;
+	this.fields = fields;
+
         let mainContentBox = new St.BoxLayout({ style_class: 'polkit-dialog-main-layout',
                                                 vertical: false });
         this.contentLayout.add(mainContentBox,
@@ -100,6 +102,7 @@ PassphraseDialog.prototype = {
                                                   // place a fixed height to avoid overflowing
                                                   style: 'height: 3em'
                                                 });
+
         descriptionLabel.clutter_text.line_wrap = true;
 
         messageBox.add(descriptionLabel,
@@ -107,21 +110,34 @@ PassphraseDialog.prototype = {
                          y_align: St.Align.START,
                          expand: true });
 
-        this._passwordBox = new St.BoxLayout({ vertical: false });
-        messageBox.add(this._passwordBox);
-        this._passwordLabel = new St.Label(({ style_class: 'polkit-dialog-password-label' }));
-        this._passwordBox.add(this._passwordLabel);
-        this._passwordEntry = new St.Entry({ style_class: 'polkit-dialog-password-entry',
-                                             text: "",
-                                             can_focus: true});
-        ShellEntry.addContextMenu(this._passwordEntry, { isPassword: true });
+	if (this.fields['Name']) {
+            this._nameBox = new St.BoxLayout({ vertical: false });
+            messageBox.add(this._nameBox);
+            this._nameLabel = new St.Label(({ style_class: 'polkit-dialog-description', text: "         Name " }));
+            this._nameBox.add(this._nameLabel);
+            this._nameEntry = new St.Entry({ style_class: 'polkit-dialog-password-entry',
+						 text: "",
+						 can_focus: true});
+            ShellEntry.addContextMenu(this._nameEntry, { isPassword: false });
 
-        this._passwordEntry.clutter_text.connect('activate', Lang.bind(this, this._onOk));
-        this._passwordBox.add(this._passwordEntry,
-                              {expand: true });
-        this.setInitialKeyFocus(this._passwordEntry);
-	this._passwordEntry.clutter_text.set_password_char('\u25cf');
+            this._nameBox.add(this._nameEntry, {expand: true });
+            this.setInitialKeyFocus(this._nameEntry);
+	}
 
+	if (this.fields['Passphrase']) {
+            this._passwordBox = new St.BoxLayout({ vertical: false });
+	    messageBox.add(this._passwordBox);
+            this._passwordLabel = new St.Label(({ style_class: 'polkit-dialog-description', text: "Passphrase "}));
+            this._passwordBox.add(this._passwordLabel);
+            this._passwordEntry = new St.Entry({ style_class: 'polkit-dialog-password-entry',
+						 text: "",
+						 can_focus: true });
+            ShellEntry.addContextMenu(this._passwordEntry, { isPassword: true });
+
+            this._passwordBox.add(this._passwordEntry, {expand: true });
+            this.setInitialKeyFocus(this._passwordEntry);
+	    this._passwordEntry.clutter_text.set_password_char('\u25cf');
+	}
 
         this._okButton = { label:  _("Connect"),
                            action: Lang.bind(this, this._onOk),
@@ -136,7 +152,20 @@ PassphraseDialog.prototype = {
     },
 
     _onOk: function() {
-	this.agent.obj.Passphrase = this._passwordEntry.get_text();
+	if (this.fields['Name']) {
+	    if (this._nameEntry.get_text())
+		this.agent.obj.Name = this._nameEntry.get_text();
+	    else
+		this.agent.obj.Name = '';
+	}
+
+	if (this.fields['Passphrase']) {
+	    if (this._passwordEntry.get_text())
+		this.agent.obj.Passphrase = this._passwordEntry.get_text();
+	    else
+		this.agent.obj.Passphrase = '';
+	}
+
 	this.close();
 	this.destroy();
 	Mainloop.source_remove(this.agent.timeout);
@@ -144,7 +173,11 @@ PassphraseDialog.prototype = {
     },
 
     cancel: function() {
-	this.agent.obj.Passphrase = 'cancel';
+	if (this.fields['Name'])
+	    this.agent.obj.Name = '';
+	if (this.fields['Passphrase'])
+	    this.agent.obj.Passphrase = '';
+
 	this.close();
 	this.destroy();
 	Mainloop.source_remove(this.agent.timeout);
@@ -199,12 +232,16 @@ Agent.prototype = {
 
 	let ssid = this.connmgr.manager.get_serv_name(service);
 
-	this.dialog = new PassphraseDialog(this, ssid);
+	this.dialog = new PassphraseDialog(this, fields, ssid);
 
 	this.dialog.open(global.get_current_time());
 
 	this.timeout = Mainloop.timeout_add(DIALOG_TIMEOUT, Lang.bind(this, function(){
-	    this.obj.Passphrase = '';
+	    if (fields['Passphrase'])
+		this.obj.Passphrase = '';
+	    if (fields['Name'])
+		this.obj.Name = '';
+
 	    this.dialog.close();
 	    this.dialog.destroy();
 	    Mainloop.source_remove(this.timeout);
@@ -349,7 +386,7 @@ Service.prototype = {
 	if (state == 'association' || state == 'configuration')
 	    this.mgr.set_status_config(this.type);
 
-	if (state == 'disconnect')
+	if (state == 'disconnect' || state == 'failure')
 	    this.mgr.autoset_status_icon();
     },
 
@@ -358,7 +395,10 @@ Service.prototype = {
     },
 
     get_name: function() {
-	return this.name;
+	if (this.hidden)
+	    return 'Hidden Network';
+	else
+	    return this.name;
     },
 
     property_changed: function(sender, str, val) {
