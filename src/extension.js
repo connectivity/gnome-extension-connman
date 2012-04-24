@@ -255,9 +255,10 @@ Service.prototype = {
 
 	    if (this.name == '' && this.type == 'cellular')
 		this.name = this.type;
-	    if (this.name == null && this.type == 'wifi')
+	    if (this.name == null && this.type == 'wifi') {
+		this.hidden = true;
 		this.name = 'Hidden';
-
+	    }
 	    this.connect('PropertyChanged', Lang.bind(this, function(sender, str, val) {
 		if (str == 'Strength')
 		    this.set_strength(val);
@@ -313,6 +314,9 @@ Service.prototype = {
 		this.label.clutter_text.set_markup('<b>' + this.name + '</b>');
 	else
 		this.label.clutter_text.set_markup(this.name);
+
+	if (this.hidden == true)
+		this.label.clutter_text.set_markup('<i>' + this.name + '</i>');
     },
 
     set_strength: function(strength) {
