@@ -64,11 +64,12 @@ function PassphraseDialog() {
 PassphraseDialog.prototype = {
     __proto__: ModalDialog.ModalDialog.prototype,
 
-    _init: function(agent, fields, ssid) {
+    _init: function(agent) {
         ModalDialog.ModalDialog.prototype._init.call(this, { styleClass: 'polkit-dialog' });
-
 	this.agent = agent;
-	this.fields = fields;
+
+	this.str1 = null;
+	this.str2 = null;
 
         let mainContentBox = new St.BoxLayout({ style_class: 'polkit-dialog-main-layout',
                                                 vertical: false });
@@ -77,6 +78,7 @@ PassphraseDialog.prototype = {
                                  y_fill: true });
 
         let icon = new St.Icon({ icon_name: 'dialog-password-symbolic' });
+
         mainContentBox.add(icon,
                            { x_fill:  true,
                              y_fill:  false,
@@ -88,56 +90,41 @@ PassphraseDialog.prototype = {
         mainContentBox.add(messageBox,
                            { y_align: St.Align.START });
 
-        let subjectLabel = new St.Label({ style_class: 'polkit-dialog-headline',
-                                            text: "Authentication required by wireless network" });
+        let subjectLabel = new St.Label({ style_class: 'polkit-dialog-headline', text: "Authentication required by wireless network"});
         messageBox.add(subjectLabel,
                        { y_fill:  false,
                          y_align: St.Align.START });
 
-        let descriptionLabel = new St.Label({ style_class: 'polkit-dialog-description',
-                                              text:"Passwords or encryption keys are required to access the wireless network " + ssid,
-                                                  // HACK: for reasons unknown to me, the label
-                                                  // is not asked the correct height for width,
-                                                  // and thus is underallocated
-                                                  // place a fixed height to avoid overflowing
-                                                  style: 'height: 3em'
-                                                });
+        this.descriptionLabel = new St.Label({ style_class: 'polkit-dialog-description', text: "" });
 
-        descriptionLabel.clutter_text.line_wrap = true;
-
-        messageBox.add(descriptionLabel,
+        messageBox.add(this.descriptionLabel,
                        { y_fill:  true,
                          y_align: St.Align.START,
                          expand: true });
 
-	if (this.fields['Name']) {
-            this._nameBox = new St.BoxLayout({ vertical: false });
-            messageBox.add(this._nameBox);
-            this._nameLabel = new St.Label(({ style_class: 'polkit-dialog-description', text: "         Name " }));
-            this._nameBox.add(this._nameLabel);
-            this._nameEntry = new St.Entry({ style_class: 'polkit-dialog-password-entry',
+        this.nameBox = new St.BoxLayout({ vertical: false });
+        messageBox.add(this.nameBox);
+
+        this.nameLabel = new St.Label(({ style_class: 'polkit-dialog-description', text: " " }));
+        this.nameBox.add(this.nameLabel);
+
+        this._nameEntry = new St.Entry({ style_class: 'polkit-dialog-password-entry',
 						 text: "",
 						 can_focus: true});
-            ShellEntry.addContextMenu(this._nameEntry, { isPassword: false });
+        ShellEntry.addContextMenu(this._nameEntry, { isPassword: false });
+        this.nameBox.add(this._nameEntry, {expand: true });
 
-            this._nameBox.add(this._nameEntry, {expand: true });
-            this.setInitialKeyFocus(this._nameEntry);
-	}
+        this.passwordBox = new St.BoxLayout({ vertical: false });
+	messageBox.add(this.passwordBox);
 
-	if (this.fields['Passphrase']) {
-            this._passwordBox = new St.BoxLayout({ vertical: false });
-	    messageBox.add(this._passwordBox);
-            this._passwordLabel = new St.Label(({ style_class: 'polkit-dialog-description', text: "Passphrase "}));
-            this._passwordBox.add(this._passwordLabel);
-            this._passwordEntry = new St.Entry({ style_class: 'polkit-dialog-password-entry',
-						 text: "",
-						 can_focus: true });
-            ShellEntry.addContextMenu(this._passwordEntry, { isPassword: true });
-
-            this._passwordBox.add(this._passwordEntry, {expand: true });
-            this.setInitialKeyFocus(this._passwordEntry);
-	    this._passwordEntry.clutter_text.set_password_char('\u25cf');
-	}
+        this.passwordLabel = new St.Label(({ style_class: 'polkit-dialog-description', text: " "}));
+        this.passwordBox.add(this.passwordLabel);
+        this._passwordEntry = new St.Entry({ style_class: 'polkit-dialog-password-entry',
+					     text: "",
+					     can_focus: true });
+        ShellEntry.addContextMenu(this._passwordEntry, { isPassword: true });
+        this.passwordBox.add(this._passwordEntry, {expand: true });
+	this._passwordEntry.clutter_text.set_password_char('\u25cf');
 
         this._okButton = { label:  _("Connect"),
                            action: Lang.bind(this, this._onOk),
@@ -149,41 +136,83 @@ PassphraseDialog.prototype = {
                            key:    Clutter.KEY_Escape,
                          },
                          this._okButton]);
+
+	this.close();
     },
 
     _onOk: function() {
-	if (this.fields['Name']) {
+	if (this.str1) {
 	    if (this._nameEntry.get_text())
-		this.agent.obj.Name = this._nameEntry.get_text();
+		this.agent.obj[this.str1] = this._nameEntry.get_text();
 	    else
-		this.agent.obj.Name = '';
+		this.agent.obj[this.str1] = '';
 	}
 
-	if (this.fields['Passphrase']) {
+	if (this.str2) {
 	    if (this._passwordEntry.get_text())
-		this.agent.obj.Passphrase = this._passwordEntry.get_text();
+		this.agent.obj[this.str2] = this._passwordEntry.get_text();
 	    else
-		this.agent.obj.Passphrase = '';
+		this.agent.obj[this.str2] = '';
 	}
 
 	this.close();
-	this.destroy();
-	Mainloop.source_remove(this.agent.timeout);
+
+	this.str1 = null;
+	this.str2 = null;
+
 	Mainloop.quit('agent');
     },
 
     cancel: function() {
-	if (this.fields['Name'])
-	    this.agent.obj.Name = '';
-	if (this.fields['Passphrase'])
-	    this.agent.obj.Passphrase = '';
+	if (this.str1)
+		this.agent.obj[this.str1] = '';
+	if (this.str2)
+		this.agent.obj[this.str2] = '';
 
 	this.close();
-	this.destroy();
-	Mainloop.source_remove(this.agent.timeout);
+
+	this.str1 = null;
+	this.str2 = null;
+
 	Mainloop.quit('agent');
     },
 
+    show_dialog: function(ssid, fields) {
+
+	this.str1 = null;
+	this.str2 = null;
+
+	this._nameEntry.text = "";
+	this._passwordEntry.text = "";
+
+	this.nameBox.hide();
+	this.passwordBox.hide();
+
+	if (ssid == 'Hidden Network') {
+	    if (fields['Passphrase'])
+		this.descriptionLabel.text = "Passwords or encryption keys are required to access the Hidden wireless network";
+	    else
+		this.descriptionLabel.text = "Network Name is required to access the Hidden wireless network";
+	} else
+	    this.descriptionLabel.text = "Passwords or encryption keys are required to access the wireless network "  + ssid;
+
+        this.descriptionLabel.style = 'height: 3em';
+        this.descriptionLabel.clutter_text.line_wrap = true;
+
+	if(fields['Name']) {
+	    this.nameLabel.text = '        Name ';
+	    this.str1 = 'Name';
+	    this.nameBox.show();
+	}
+
+	if(fields['Passphrase']) {
+	    this.passwordLabel.text = 'Passphrase ';
+	    this.str2 = 'Passphrase';
+	    this.passwordBox.show();
+	}
+
+	this.open()
+    }
 };
 
 
@@ -204,7 +233,10 @@ function Agent() {
 
 Agent.prototype = {
     _init: function(connmgr) {
+
 	this.connmgr = connmgr;
+	this.dialog = new PassphraseDialog(this);
+	this.timeoutid = 0;
 
 	DBus.system.exportObject(AGENT_PATH, this);
     },
@@ -232,24 +264,27 @@ Agent.prototype = {
 
 	let ssid = this.connmgr.manager.get_serv_name(service);
 
-	this.dialog = new PassphraseDialog(this, fields, ssid);
+	if (this.timeoutid != 0)
+	    Mainloop.source_remove(this.timeout);
 
-	this.dialog.open(global.get_current_time());
+	this.dialog.show_dialog(ssid, fields);
 
-	this.timeout = Mainloop.timeout_add(DIALOG_TIMEOUT, Lang.bind(this, function(){
-	    if (fields['Passphrase'])
+	this.timeoutid  = Mainloop.timeout_add(DIALOG_TIMEOUT, Lang.bind(this, function(){
+	    if (fields['Passphrase']['Requirement'] == 'mandatory')
 		this.obj.Passphrase = '';
-	    if (fields['Name'])
+	    if (fields['Name']['Requirement'] == 'mandatory')
 		this.obj.Name = '';
 
 	    this.dialog.close();
-	    this.dialog.destroy();
-	    Mainloop.source_remove(this.timeout);
+
 	    Mainloop.quit('agent');
 
 	}));
 
 	Mainloop.run('agent');
+
+	Mainloop.source_remove(this.timeout);
+	this.timeout = 0;
 
 	return this.obj;
     },
