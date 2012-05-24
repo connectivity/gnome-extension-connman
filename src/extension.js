@@ -622,16 +622,16 @@ Manager.prototype = {
 
     set_status_config: function(type) {
 	    if (type == 'wifi')
-		this.connmgr.icon.icon_name = 'network-wireless-acquiring-symbolic';
+		this.connmgr.setIcon('network-wireless-acquiring-symbolic');
 	    if (type == 'cellular')
-		this.connmgr.icon.icon_name = 'network-cellular-acquiring-symbolic';
+		this.connmgr.setIcon('network-cellular-acquiring-symbolic');
 	    if (type == 'ethernet')
-		this.connmgr.icon.icon_name = 'network-wired-acquiring-symbolic';
+		this.connmgr.setIcon('network-wired-acquiring-symbolic');
     },
 
     set_status_strength: function(type, strength) {
 	if (this.status_icon_type == type)
-	    this.connmgr.icon.icon_name = getIcon(type, strength);
+	    this.connmgr.setIcon(getIcon(type, strength));
     },
 
     autoset_status_icon: function() {
@@ -639,11 +639,11 @@ Manager.prototype = {
 	    let service  = this.services[i];
 	    if (service.state == 'ready' || service.state == 'online') {
 		this.status_icon_type = service.type;
-		this.connmgr.icon.icon_name = getIcon(service.type, service.strength);
+		this.connmgr.setIcon(getIcon(service.type, service.strength));
 		return;
 	    }
 	}
-	this.connmgr.icon.icon_name = 'network-offline-symbolic';
+	this.connmgr.setIcon('network-offline-symbolic');
     },
 
     create_technology: function(path, properties) {
@@ -770,40 +770,24 @@ Manager.prototype = {
 
 DBus.proxifyPrototype(Manager.prototype, ManagerIface);
 
-function ConnManager(metadata) {
-    this._init(metadata);
-}
-
-ConnManager.prototype = {
-    __proto__: PanelMenu.Button.prototype,
+const ConnManager = new Lang.Class({
+    Name: 'ConnManager',
+    Extends: PanelMenu.SystemStatusButton,
 
     run: false,
     open:false,
 
-    _init: function(metadata) {
-        PanelMenu.Button.prototype._init.call(this, 0.0);
-	this.metadata = metadata;
+    _init: function() {
+	this.parent('network-offline-symbolic', _("Network"));
+	this.ConnmanVanished();
 	this.agent = new Agent(this);
-        this.build_ui();
+
         DBus.system.watch_name('net.connman', null,
 			   Lang.bind(this, this.ConnmanAppeared),
 			   Lang.bind(this, this.ConnmanVanished)
         );
+
         this.actor.connect('button-press-event', Lang.bind(this, this.menuopen));
-    },
-
-    build_ui: function() {
-        this.icon = new St.Icon({
-	    icon_name: 'network-offline-symbolic',
-	    style_class: "popup-menu-icon",
-            icon_type: St.IconType.SYMBOLIC
-        });
-
-        this.main_icon = new St.BoxLayout();
-        this.main_icon.add_actor(this.icon);
-
-        this.actor.add_actor(this.main_icon);
-	this.ConnmanVanished();
     },
 
     ConnmanAppeared: function() {
@@ -819,25 +803,21 @@ ConnManager.prototype = {
 	    this.manager = null;
 	}
 
-	this.icon.icon_name = 'network-offline-symbolic';
-
 	this._mainmenu = new PopupMenu.PopupMenuSection();
-	let no_connmand = new PopupMenu.PopupMenuItem(_("Connman is not running"), { reactive: false, style_class: "section-title" });
-	this._mainmenu.addMenuItem(no_connmand);
+	let no_connmand = new PopupMenu.PopupMenuItem(_("Connman is not running"),
+			{ reactive: false, style_class: 'popup-inactive-menu-item' });
 
+	this._mainmenu.addMenuItem(no_connmand);
 	this.menu.addMenuItem(this._mainmenu);
     },
 
     enable: function() {
         this.run = true;
-        Main.panel._rightBox.insert_actor(this.actor, 0);
-        Main.panel._menus.addMenu(this.menu);
+	Main.panel.addToStatusArea('Connman', this);
     },
 
     disable: function() {
         this.run = false;
-        Main.panel._rightBox.remove_actor(this.actor);
-        Main.panel._menus.removeMenu(this.menu);
     },
 
     menuopen: function() {
@@ -852,9 +832,9 @@ ConnManager.prototype = {
 	    this.open = false;
 	}
     },
-}
+})
 
-function init(metadata) {
+function init() {
     global.log ('running ConnManager extension');
-    return new ConnManager(metadata);
+    return new ConnManager();
 }
