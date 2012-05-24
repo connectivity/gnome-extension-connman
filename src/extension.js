@@ -535,11 +535,10 @@ Manager.prototype = {
 	this.serv_menu = new PopupMenu.PopupMenuSection();
 
 	connmgr.menu.addMenuItem(this.mgr_menu);
+	connmgr.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 	connmgr.menu.addMenuItem(this.tech_menu);
+	connmgr.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 	connmgr.menu.addMenuItem(this.serv_menu);
-
-	this.tech_menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-	this.serv_menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
 	this.GetPropertiesRemote(Lang.bind(this,
             function(result, excp) {
@@ -692,8 +691,6 @@ Manager.prototype = {
 	    this.serv_sub_menu.destroy();
 	    this.serv_sub_menu = null;
 	}
-
-	this.serv_menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
 	for each (var serv in services) {
 	    for each (var item in serv) {
