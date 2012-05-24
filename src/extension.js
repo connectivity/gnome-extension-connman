@@ -58,21 +58,18 @@ function getIcon(type, strength) {
 	return 'network-wireless-signal-' + signalToIcon(strength) + '-symbolic';
 }
 
-function PassphraseDialog() {
-    this._init.apply(this, arguments);
-}
-
-PassphraseDialog.prototype = {
-    __proto__: ModalDialog.ModalDialog.prototype,
+const PassphraseDialog = new Lang.Class({
+    Name: 'PassphraseDialog',
+    Extends: ModalDialog.ModalDialog,
 
     _init: function(agent) {
-        ModalDialog.ModalDialog.prototype._init.call(this, { styleClass: 'polkit-dialog' });
+	this.parent({ styleClass: 'prompt-dialog' });
 	this.agent = agent;
 
 	this.str1 = null;
 	this.str2 = null;
 
-        let mainContentBox = new St.BoxLayout({ style_class: 'polkit-dialog-main-layout',
+        let mainContentBox = new St.BoxLayout({ style_class: 'prompt-dialog-main-layout',
                                                 vertical: false });
         this.contentLayout.add(mainContentBox,
                                { x_fill: true,
@@ -86,17 +83,18 @@ PassphraseDialog.prototype = {
                              x_align: St.Align.END,
                              y_align: St.Align.START });
 
-        let messageBox = new St.BoxLayout({ style_class: 'polkit-dialog-message-layout',
+        let messageBox = new St.BoxLayout({ style_class: 'prompt-dialog-message-layout',
                                             vertical: true });
         mainContentBox.add(messageBox,
                            { y_align: St.Align.START });
 
-        let subjectLabel = new St.Label({ style_class: 'polkit-dialog-headline', text: "Authentication required by wireless network"});
+        let subjectLabel = new St.Label({ style_class: 'prompt-dialog-headline',
+					  text: "Authentication required by wireless network"});
         messageBox.add(subjectLabel,
                        { y_fill:  false,
                          y_align: St.Align.START });
 
-        this.descriptionLabel = new St.Label({ style_class: 'polkit-dialog-description', text: "" });
+        this.descriptionLabel = new St.Label({ style_class: 'prompt-dialog-description', text: "" });
 
         messageBox.add(this.descriptionLabel,
                        { y_fill:  true,
@@ -106,10 +104,10 @@ PassphraseDialog.prototype = {
         this.nameBox = new St.BoxLayout({ vertical: false });
         messageBox.add(this.nameBox);
 
-        this.nameLabel = new St.Label(({ style_class: 'polkit-dialog-description', text: " " }));
+        this.nameLabel = new St.Label(({ style_class: 'prompt-dialog-description', text: " " }));
         this.nameBox.add(this.nameLabel);
 
-        this._nameEntry = new St.Entry({ style_class: 'polkit-dialog-password-entry',
+        this._nameEntry = new St.Entry({ style_class: 'prompt-dialog-password-entry',
 						 text: "",
 						 can_focus: true});
         ShellEntry.addContextMenu(this._nameEntry, { isPassword: false });
@@ -118,9 +116,9 @@ PassphraseDialog.prototype = {
         this.passwordBox = new St.BoxLayout({ vertical: false });
 	messageBox.add(this.passwordBox);
 
-        this.passwordLabel = new St.Label(({ style_class: 'polkit-dialog-description', text: " "}));
+        this.passwordLabel = new St.Label(({ style_class: 'prompt-dialog-description', text: " "}));
         this.passwordBox.add(this.passwordLabel);
-        this._passwordEntry = new St.Entry({ style_class: 'polkit-dialog-password-entry',
+        this._passwordEntry = new St.Entry({ style_class: 'prompt-dialog-password-entry',
 					     text: "",
 					     can_focus: true });
         ShellEntry.addContextMenu(this._passwordEntry, { isPassword: true });
@@ -214,7 +212,7 @@ PassphraseDialog.prototype = {
 
 	this.open()
     }
-};
+});
 
 
 const AgentIface = {
