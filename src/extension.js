@@ -350,6 +350,9 @@ Service.prototype = {
 	this.label = new St.Label();
 	this.menuItem.addActor(this.label);
 
+	this.state_label = new St.Label();
+	this.menuItem.addActor(this.state_label);
+
 	this.set_label(this.favorite);
 
 	this._icons = new St.BoxLayout({ style_class: 'nm-menu-item-icons' });
@@ -406,6 +409,7 @@ Service.prototype = {
 	this.state = state;
 
 	if (state == 'online' || state == 'ready') {
+	    this.state_label.text = '';
 	    this.menuItem.setShowDot(true);
 	    this.connected = true;
 	    this.mgr.autoset_status_icon();
@@ -415,13 +419,29 @@ Service.prototype = {
 	if (this.connected == true) {
 	    this.menuItem.setShowDot(false);
 	    this.connected = false;
+	    this.state_label.text = '';
+	    return;
 	}
 
-	if (state == 'association' || state == 'configuration')
+	if (state == 'association' || state == 'configuration') {
 	    this.mgr.set_status_config(this.type);
+	    this.state_label.text = state;
+	    if(state == 'association')
+		this.state_label.clutter_text.set_markup('<i>' + 'Associating...' + '</i>');
+	    else
+		this.state_label.clutter_text.set_markup('<i>' + 'Configuring...' + '</i>');
 
-	if (state == 'disconnect' || state == 'failure')
+	    this.state_label.style = 'font-size: 70%';
+	    return;
+	}
+
+	if (state == 'disconnect' || state == 'failure') {
 	    this.mgr.autoset_status_icon();
+	    this.state_label.text = '';
+	    return;
+	}
+	/* For Idle state */
+	this.state_label.text = '';
     },
 
     get_path: function() {
