@@ -761,6 +761,22 @@ Manager.prototype = {
 	}
 	return null;
     },
+
+    scan: function() {
+	if (this.serv_menu.numMenuItems > 1)
+	    return;
+
+	let menuItem = new PopupMenu.PopupBaseMenuItem();
+	let label = new St.Label();
+	menuItem.addActor(label);
+	label.clutter_text.set_markup('<i>' + 'Scanning for Networks...' + '</i>');
+
+	this.add_service(menuItem);
+
+	let wifi = this.get_tech_path('/net/connman/technology/wifi');
+	if (wifi)
+	    wifi.ScanRemote();
+    },
 };
 
 DBus.proxifyPrototype(Manager.prototype, ManagerIface);
@@ -817,11 +833,8 @@ const ConnManager = new Lang.Class({
 
     menuopen: function() {
 	if (this.open == false) {
-	    if (this.manager) {
-		let wifi = this.manager.get_tech_path('/net/connman/technology/wifi');
-		if (wifi)
-		    wifi.ScanRemote();
-	    }
+	    if (this.manager)
+		this.manager.scan();
 	    this.open = true;
 	} else {
 	    this.open = false;
