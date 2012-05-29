@@ -834,6 +834,7 @@ const ConnManager = new Lang.Class({
 	    this.manager = null;
 	}
 
+	this.setIcon('network-offline-symbolic');
 	this._mainmenu = new PopupMenu.PopupMenuSection();
 	let no_connmand = new PopupMenu.PopupMenuItem(_("Connman is not running"),
 			{ reactive: false, style_class: 'popup-inactive-menu-item' });
