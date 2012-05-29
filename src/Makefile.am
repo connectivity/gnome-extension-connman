@@ -1,8 +1,8 @@
 # Change these to modify how installation is performed
-#extensionurl = 
+extensionurl = git://github.com/connectivity/gnome-extension-connman.git
 topextensiondir = $(datadir)/gnome-shell/extensions
 extensiondir = $(topextensiondir)/$(uuid)
-uuid = connection-manager@intel-otc
+uuid = gnome-extension-connman
 
 dist_extension_DATA = extension.js
 nodist_extension_DATA = metadata.json $(EXTRA_EXTENSION)
