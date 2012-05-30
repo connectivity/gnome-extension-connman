@@ -54,8 +54,12 @@ function getIcon(type, strength) {
 	return 'network-cellular-signal-' + signalToIcon(strength) + '-symbolic';
     else if (type == 'bluetooth')
 	return 'bluetooth-active-symbolic';
-    else (type == 'wifi')
+    else if (type == 'wifi')
 	return 'network-wireless-signal-' + signalToIcon(strength) + '-symbolic';
+    else if (type == 'vpn')
+	return 'network-vpn-symbolic';
+    else
+	return 'network-offline-symbolic';
 }
 
 const PassphraseDialog = new Lang.Class({
@@ -644,6 +648,8 @@ Manager.prototype = {
 		this.connmgr.setIcon('network-cellular-acquiring-symbolic');
 	    if (type == 'ethernet')
 		this.connmgr.setIcon('network-wired-acquiring-symbolic');
+	    if (type == 'vpn')
+		this.connmgr.setIcon('network-vpn-acquiring-symbolic');
     },
 
     set_status_strength: function(type, strength) {
