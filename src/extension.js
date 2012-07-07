@@ -167,15 +167,8 @@ const PassphraseDialog = new Lang.Class({
     },
 
     cancel: function() {
-	if (this.str1)
-		this.agent.obj[this.str1] = '';
-	if (this.str2)
-		this.agent.obj[this.str2] = '';
-
 	this.close();
-
-	this.str1 = null;
-	this.str2 = null;
+	this.agent.cancel = true;
 
 	Mainloop.quit('agent');
     },
@@ -187,6 +180,10 @@ const PassphraseDialog = new Lang.Class({
 
 	this._nameEntry.text = "";
 	this._passwordEntry.text = "";
+
+	if(fields['PreviousPassphrase']) {
+	    this._passwordEntry.text = fields['PreviousPassphrase']['Value'];
+	}
 
 	this.nameBox.hide();
 	this.passwordBox.hide();
@@ -215,6 +212,11 @@ const PassphraseDialog = new Lang.Class({
 	}
 
 	this.open()
+
+	if (fields['Name'])
+	    global.stage.set_key_focus(this._nameEntry);
+	else
+	    global.stage.set_key_focus(this._passwordEntry);
     }
 });
 
@@ -240,7 +242,7 @@ Agent.prototype = {
 	this.connmgr = connmgr;
 	this.dialog = new PassphraseDialog(this);
 	this.timeoutid = 0;
-
+	this.cancel = false;
 	DBus.system.exportObject(AGENT_PATH, this);
     },
 
@@ -257,6 +259,8 @@ Agent.prototype = {
 	let notification = new MessageTray.Notification(source, content, null);
 	notification.setTransient(true);
 	source.notify(notification);
+	let err = new DBus.DBusError('net.connman.Agent.Error.Retry', 'retry this service');
+	throw err;
     },
 
     RequestBrowser: function(service, url) {
@@ -264,6 +268,7 @@ Agent.prototype = {
 
     RequestInput: function(service, fields) {
 	this.obj = new Object();
+	this.cancel = false;
 
 	let ssid = this.connmgr.manager.get_serv_name(service);
 
@@ -273,21 +278,22 @@ Agent.prototype = {
 	this.dialog.show_dialog(ssid, fields);
 
 	this.timeoutid  = Mainloop.timeout_add(DIALOG_TIMEOUT, Lang.bind(this, function(){
-	    if (fields['Passphrase']['Requirement'] == 'mandatory')
-		this.obj.Passphrase = '';
-	    if (fields['Name']['Requirement'] == 'mandatory')
-		this.obj.Name = '';
-
 	    this.dialog.close();
-
+	    this.cancel = true;
 	    Mainloop.quit('agent');
 
 	}));
 
 	Mainloop.run('agent');
 
-	Mainloop.source_remove(this.timeout);
-	this.timeout = 0;
+	Mainloop.source_remove(this.timeoutid);
+	this.timeoutid = 0;
+
+	if (this.cancel == true) {
+	    let err = new DBus.DBusError('net.connman.Agent.Error.Canceled', 'Cancel the connect');
+	    throw err;
+	    return;
+	}
 
 	return this.obj;
     },
@@ -775,8 +781,11 @@ Manager.prototype = {
 	    }
 
 	    this.serv_sub_menu.menu.addMenuItem(service);
-	} else
+	} else {
+	    this.serv_menu.close();
 	    this.serv_menu.addMenuItem(service);
+	    this.serv_menu.open();
+	}
     },
 
     get_serv_name: function(path) {
