@@ -265,7 +265,7 @@ Agent.prototype = {
 	    Mainloop.source_remove(this.errid);
 
 	let ssid = this.connmgr.manager.get_serv_name(service);
-	let content = 'Unable to connecte to ' + ssid + ' : ' + error;
+	let content = 'Unable to connect to ' + ssid + ' : ' + error;
 	let title = 'Connection Error';
 
 	let notification = new MessageTray.Notification(source, title, content, null);
