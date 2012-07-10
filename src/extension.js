@@ -128,6 +128,7 @@ const PassphraseDialog = new Lang.Class({
         ShellEntry.addContextMenu(this._passwordEntry, { isPassword: true });
         this.passwordBox.add(this._passwordEntry, {expand: true });
 	this._passwordEntry.clutter_text.set_password_char('\u25cf');
+	this._passwordEntry.clutter_text.connect('activate', Lang.bind(this, this._onOk));
 
         this._okButton = { label:  _("Connect"),
                            action: Lang.bind(this, this._onOk),
