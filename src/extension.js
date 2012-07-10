@@ -181,9 +181,8 @@ const PassphraseDialog = new Lang.Class({
 	this._nameEntry.text = "";
 	this._passwordEntry.text = "";
 
-	if(fields['PreviousPassphrase']) {
+	if(fields['PreviousPassphrase'])
 	    this._passwordEntry.text = fields['PreviousPassphrase']['Value'];
-	}
 
 	this.nameBox.hide();
 	this.passwordBox.hide();
@@ -242,25 +241,68 @@ Agent.prototype = {
 	this.connmgr = connmgr;
 	this.dialog = new PassphraseDialog(this);
 	this.timeoutid = 0;
+	this.errid = 0;
 	this.cancel = false;
+	this.retry = false;
+
 	DBus.system.exportObject(AGENT_PATH, this);
     },
 
     Release: function() {
     },
 
+    _onRetryClicked: function() {
+	this.retry = true;
+	Mainloop.quit('error');
+    },
+
     ReportError: function(service, error) {
+	this.retry = false;
+
 	let source = new MessageTray.SystemNotificationSource();
-	let messageTray = new MessageTray.MessageTray();
-	messageTray.add(source);
+
+	if (this.errid != 0)
+	    Mainloop.source_remove(this.errid);
 
 	let ssid = this.connmgr.manager.get_serv_name(service);
 	let content = 'Unable to connecte to ' + ssid + ' : ' + error;
-	let notification = new MessageTray.Notification(source, content, null);
-	notification.setTransient(true);
+	let title = 'Connection Error';
+
+	let notification = new MessageTray.Notification(source, title, content, null);
+	notification.connect('destroy', Lang.bind(this, function () {
+	    notification.destroy();
+	    source.destroy();
+	}));
+
+	let messageTray = new MessageTray.MessageTray();
+	messageTray.add(source);
 	source.notify(notification);
-	let err = new DBus.DBusError('net.connman.Agent.Error.Retry', 'retry this service');
-	throw err;
+
+	if (error == "invalid-key") {
+	    notification.addButton('retry', _("Retry"));
+            notification.connect('action-invoked',
+                                 Lang.bind(this, this._onRetryClicked));
+
+	    notification.setUrgency(MessageTray.Urgency.HIGH);
+	    notification.setResident(true);
+	}
+
+	this.errid = Mainloop.timeout_add(DIALOG_TIMEOUT, Lang.bind(this, function(){
+	    Mainloop.quit('error');
+	}));
+
+	Mainloop.run('error');
+
+	Mainloop.source_remove(this.errid);
+	this.errid = 0;
+
+	notification.destroy();
+	source.destroy();
+
+	if (this.retry == true) {
+	    let err = new DBus.DBusError('net.connman.Agent.Error.Retry', 'retry this service');
+	    throw err;
+	}
     },
 
     RequestBrowser: function(service, url) {
