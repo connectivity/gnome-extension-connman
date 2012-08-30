@@ -204,7 +204,7 @@ const PassphraseDialog = new Lang.Class({
 		if (this.type == 'psk')
 		    this.securityLabel.text = "This accesspoint is using WPA(personal) security.	A passphrase of min 8 characters is required to access the network.";
 		if (this.type == 'wep')
-		    this.securityLabel.text = "This accesspoint is using WEP security.		A key of 10, 26 or 58 digits is required to access the network.";
+		    this.securityLabel.text = "This accesspoint is using WEP security.			A key of 10, 26 or 58 digits is required to access the network.";
 
 		this.securityLabel.style = 'height: 5em';
 		this.securityLabel.clutter_text.line_wrap = true;
@@ -572,8 +572,11 @@ const ServiceItem = new Lang.Class({
 	    this._secureIcon = new St.Icon({ style_class: 'popup-menu-icon' });
 	    if (this.security[0] == 'ieee8021x')
 		this._secureIcon.icon_name = 'security-high-symbolic';
+	    else if (this.security[0] == 'wep')
+		this._secureIcon.icon_name = 'security-low-symbolic';
 	    else
 		this._secureIcon.icon_name = 'network-wireless-encrypted';
+
 	    this._icons.add_actor(this._secureIcon);
 	}
 
