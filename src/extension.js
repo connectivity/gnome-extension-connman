@@ -198,18 +198,15 @@ const PassphraseDialog = new Lang.Class({
 
 	    /* Add a Security Tip */
 	    if (this.type == 'psk' || this.type == 'wep') {
-		this.securityBox = new St.BoxLayout({ vertical: false });
-		messageBox.add(this.securityBox);
-
 		this.securityLabel = new St.Label({ style_class: 'prompt-dialog-description', text: "" });
-		messageBox.add(this.securityLabel,{ y_fill: true, y_align: St.Align.START, expand: true });
+		messageBox.add(this.securityLabel, { y_fill: true, y_align: St.Align.START, expand: true });
 
 		if (this.type == 'psk')
-		    this.securityLabel.text = _("Security: WPA, A passphrase of min 8 characters is required to access the network.");
+		    this.securityLabel.text = "This accesspoint is using WPA(personal) security.	A passphrase of min 8 characters is required to access the network.";
 		if (this.type == 'wep')
-		    this.securityLabel.text = _("Security: WEP, A key of 10, 26 or 58 digits is required to access the network.");
+		    this.securityLabel.text = "This accesspoint is using WEP security.		A key of 10, 26 or 58 digits is required to access the network.";
 
-		this.securityLabel.style = 'height: 2.5em';
+		this.securityLabel.style = 'height: 5em';
 		this.securityLabel.clutter_text.line_wrap = true;
 	    }
 	}
@@ -346,8 +343,7 @@ const Agent = new Lang.Class({
     _init: function() {
 	this._dbusImpl = Gio.DBusExportedObject.wrapJSObject(AgentInterface, this);
 	this._dbusImpl.export(Gio.DBus.system, AGENT_PATH);
-	this.source = new MessageTray.SystemNotificationSource();
-	Main.messageTray.add(this.source);
+	this.source = null;
     },
 
     Release: function() {
@@ -356,6 +352,11 @@ const Agent = new Lang.Class({
     ReportErrorAsync: function(params, invocation) {
 	let [service, error] = params;
 	let ssid = _extension.services[service].service.get_name();
+
+	if (this.source == null) {
+	    this.source = new MessageTray.SystemNotificationSource();
+	    Main.messageTray.add(this.source);
+	}
 
 	this.err_dialog = new ErrorDialog(this.source, ssid, error, invocation);
 	this.source.notify(this.err_dialog);
@@ -379,7 +380,8 @@ const Agent = new Lang.Class({
 	    this.dialog.onCancel();
 	if (this.err_dialog)
 	    this.err_dialog.destroy();
-	this.source.destroy();
+	if (this.source)
+	    this.source.destroy();
     }
 });
 
@@ -963,7 +965,10 @@ function disable() {
     Gio.DBus.system.unwatch_name(_extension.watch);
     _extension.CleanUp();
     _extension.destroy();
+
+    _agent._dbusImpl.unexport(Gio.DBus.system, AGENT_PATH);
     delete _agent;
+
     _extension = null;
     _defaultpath = null;
 }
