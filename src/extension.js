@@ -208,6 +208,8 @@ const PassphraseDialog = new Lang.Class({
 
 		this.securityLabel.style = 'height: 5em';
 		this.securityLabel.clutter_text.line_wrap = true;
+
+		this._passphraseEntry.clutter_text.connect('text-changed', Lang.bind(this, this.UpdateOK));
 	    }
 	}
 
@@ -229,16 +231,8 @@ const PassphraseDialog = new Lang.Class({
 	else
 	    global.stage.set_key_focus(this._passphraseEntry);
 
-	if (this.type == 'psk') {
-	    let pass = this._passphraseEntry.get_text();
-	    if (pass.length < 8) {
-		this._passphraseEntry.clutter_text.connect('text-changed', Lang.bind(this, this.UpdateOK));
-
-		this.okButton.button.reactive = false;
-		this.okButton.button.can_focus = false;
-		this.okButton.button.add_style_pseudo_class('disabled');
-	    }
-	}
+	if (this.type == 'psk' || this.type == 'wep')
+	    this.UpdateOK();
 
 	this.timeoutid = Mainloop.timeout_add(DIALOG_TIMEOUT, Lang.bind(this, function() {
 	    this.onCancel();
@@ -274,10 +268,18 @@ const PassphraseDialog = new Lang.Class({
     UpdateOK: function() {
 	let pass = this._passphraseEntry.get_text();
 
-	if (pass.length >= 8) {
+	if (this.type == 'psk' && (pass.length >= 8 && pass.length <=64)) {
 	    this.okButton.button.reactive = true;
 	    this.okButton.button.can_focus = true;
 	    this.okButton.button.remove_style_pseudo_class('disabled');
+	} else if (this.type == 'wep' && (pass.length == 10 || pass.length == 26 || pass.length == 58)) {
+	    this.okButton.button.reactive = true;
+	    this.okButton.button.can_focus = true;
+	    this.okButton.button.remove_style_pseudo_class('disabled');
+	} else {
+	    this.okButton.button.reactive = true;
+	    this.okButton.button.can_focus = true;
+	    this.okButton.button.add_style_pseudo_class('disabled');
 	}
     }
 });
