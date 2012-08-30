@@ -144,11 +144,11 @@ const PassphraseDialog = new Lang.Class({
 	/* Set the description lable according to the ssid name */
 	if (ssid == 'Hidden Network') {
 	    if (fields['Passphrase'])
-		this.descriptionLabel.text = "Passwords or encryption keys are required to access the Hidden wireless network";
+		this.descriptionLabel.text = _("Passwords or encryption keys are required to access the Hidden wireless network");
 	    else
-		this.descriptionLabel.text = "Network Name is required to access the Hidden wireless network";
+		this.descriptionLabel.text = _("Network Name is required to access the Hidden wireless network");
 	} else
-	    this.descriptionLabel.text = "Passwords or encryption keys are required to access the wireless network "  + ssid;
+	    this.descriptionLabel.text = _("Passwords or encryption keys are required to access the wireless network ")  + ssid;
 
         this.descriptionLabel.style = 'height: 3em';
         this.descriptionLabel.clutter_text.line_wrap = true;
@@ -202,9 +202,9 @@ const PassphraseDialog = new Lang.Class({
 		messageBox.add(this.securityLabel, { y_fill: true, y_align: St.Align.START, expand: true });
 
 		if (this.type == 'psk')
-		    this.securityLabel.text = "This accesspoint is using WPA(personal) security.	A passphrase of min 8 characters is required to access the network.";
+		    this.securityLabel.text = _("This accesspoint is using WPA(personal) security.	A passphrase of min 8 characters is required to access the network.");
 		if (this.type == 'wep')
-		    this.securityLabel.text = "This accesspoint is using WEP security.			A key of 10, 26 or 58 digits is required to access the network.";
+		    this.securityLabel.text = _("This accesspoint is using WEP security.			A key of 10, 26 or 58 digits is required to access the network.");
 
 		this.securityLabel.style = 'height: 5em';
 		this.securityLabel.clutter_text.line_wrap = true;
@@ -962,6 +962,7 @@ function init() {
 
 function enable() {
     _agent = new Agent();
+
     _extension = new ConnManager();
     Main.panel.addToStatusArea('ConnMan', _extension);
 }
