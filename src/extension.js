@@ -437,6 +437,9 @@ const TechnologyInterface = <interface name="net.connman.Technology">
     <arg name="name" type="s" direction="in"/>
     <arg name="value" type="v" direction="in"/>
 </method>
+<method name="GetProperties">
+    <arg name="properties" type="a{sv}" direction="out"/>
+</method>
 <method name="Scan">
 </method>
 <signal name="PropertyChanged">
@@ -458,6 +461,16 @@ const TechnologyItem = new Lang.Class({
 	this.tech_sig_prop = this.proxy.connectSignal('PropertyChanged', Lang.bind(this, function(proxy, sender,[property, value]) {
 	    if (property == "Powered")
 		this.sw.setToggleState(value.deep_unpack());
+	}));
+
+	/* If the property of the technology has changed by the time we were
+	 * iterating through the list of technologiess via GetTechnologies we
+	 * would have missed the PropertyChanged signal. Do an explicit GetProperty
+	 * on the technology to make sure the properties are properly updated. 
+	 */
+	this.proxy.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
+	    let properties = result[0];
+	    this.sw.setToggleState(properties.Powered.deep_unpack());
 	}));
 
 	this.sw.connect('toggled',  Lang.bind(this, function(item, state) {
