@@ -851,7 +851,16 @@ const ConnManager = new Lang.Class({
 	    let serv_array = result[0];
 	    for each (let [path, properties] in serv_array) {
 		this.services[path] = { service: new ServiceItem(path, properties)};
-		this._servicemenu.addMenuItem(this.services[path].service.CreateMenuItem());
+
+		if (this._servicemenu.numMenuItems == MAX_SERVICES) {
+		    this._servicesubmenu = new PopupMenu.PopupSubMenuMenuItem(_("More..."));
+		    this._servicemenu.addMenuItem(this._servicesubmenu);
+		}
+
+		if (this._servicesubmenu)
+		    this._servicesubmenu.menu.addMenuItem(this.services[path].service.CreateMenuItem());
+		else
+		    this._servicemenu.addMenuItem(this.services[path].service.CreateMenuItem());
 	    };
 	}));
 
@@ -866,11 +875,12 @@ const ConnManager = new Lang.Class({
 		delete this.services[path_rem];
 	    };
 
-	    this._servicemenu.removeAll();
+	    if (this._servicesubmenu) {
+		this._servicesubmenu.destroy();
+		this._servicesubmenu = null;
+	    }
 
-	    /* If there are no changed services, return. */
-	    if (changed.length == 0)
-		return;
+	    this._servicemenu.removeAll();
 
 	    let def = changed[0];
 	    if (def[0] != _defaultpath)
@@ -880,7 +890,16 @@ const ConnManager = new Lang.Class({
 		if (!Object.getOwnPropertyDescriptor(this.services, path)) {
 		    this.services[path] = { service: new ServiceItem(path, properties)};
 		}
-		this._servicemenu.addMenuItem(this.services[path].service.CreateMenuItem());
+
+		if (this._servicemenu.numMenuItems == MAX_SERVICES) {
+		    this._servicesubmenu = new PopupMenu.PopupSubMenuMenuItem(_("More..."));
+		    this._servicemenu.addMenuItem(this._servicesubmenu);
+		}
+
+		if (this._servicesubmenu)
+		    this._servicesubmenu.menu.addMenuItem(this.services[path].service.CreateMenuItem());
+		else
+		    this._servicemenu.addMenuItem(this.services[path].service.CreateMenuItem());
 	    }
 	}));
     },
