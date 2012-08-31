@@ -972,6 +972,9 @@ const ConnManager = new Lang.Class({
 	if (this._servicemenu)
 	    this._servicemenu.destroy();
 
+	if (this._servicesubmenu)
+	    this._servicesubmenu.destroy();
+
     },
 })
 
