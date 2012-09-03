@@ -878,6 +878,22 @@ const ConnManager = new Lang.Class({
 	}));
 
 	this.startListner();
+
+	this.menu.connect('open-state-changed', Lang.bind(this, function(menu, open) {
+	    if (!open)
+		return;
+
+	    /* If the menu was opened, trigger a wifi scan.
+	     * ConnMan discards wifi scan results after a timeout. */
+
+	    let path = '/net/connman/technology/wifi';
+	    if (!Object.getOwnPropertyDescriptor(this.technologies, path)) {
+		return;
+	    }
+
+	    let wifi = this.technologies['/net/connman/technology/wifi'];
+	    wifi.technology.proxy.ScanRemote();
+	}));
     },
 
     startListner: function() {
