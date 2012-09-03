@@ -206,7 +206,7 @@ const PassphraseDialog = new Lang.Class({
 		if (this.type == 'wep')
 		    this.securityLabel.text = _("This access point is using WEP security.\nA key of 10, 26 or 58 characters is required to access the network.");
 
-		this.securityLabel.style = 'height: 4em';
+		this.securityLabel.style = 'height: 5em';
 		this.securityLabel.clutter_text.line_wrap = true;
 
 		this._passphraseEntry.clutter_text.connect('text-changed', Lang.bind(this, this.UpdateOK));
