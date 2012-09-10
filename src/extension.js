@@ -40,6 +40,7 @@ const BUS_NAME = 'net.connman';
 let _extension = null;
 let _defaultpath = null;
 let _agent = null;
+let _menuopen = false;
 
 function signalToIcon(value) {
     if (value > 80)
@@ -508,6 +509,7 @@ const ServiceItem = new Lang.Class({
     _init: function(path, properties) {
 	this.path = path;
 	this.proxy = new ServiceProxy(Gio.DBus.system, BUS_NAME, path);
+	this.marked_inactive = false;
 
 	/* For Ethernet and Hidden Wifi networks the Name property is absent. */
 	if (properties.Name)
@@ -726,11 +728,17 @@ const ServiceItem = new Lang.Class({
 	this.error = error;
 	this.set_state_label();
     },
-    get_name:function() {
+
+    get_name: function() {
 	if (this.hidden == true)
 	    return 'Hidden Network';
 	else
 	    return this.name;
+    },
+
+    set_inactive: function() {
+	this.marked_inactive = true;
+        this.Item.setSensitive(false);
     },
 
     CleanUp: function() {
@@ -880,9 +888,18 @@ const ConnManager = new Lang.Class({
 	}));
 
 	this.menu.connect('open-state-changed', Lang.bind(this, function(menu, open) {
-	    if (!open)
-		return;
+	    _menuopen = open;
 
+	    if (!open) {
+		let paths = Object.getOwnPropertyNames(this.services);
+		for each (path in paths) {
+		    if (this.services[path].service.marked_inactive) {
+			this.services[path].service.Item.destroy();
+			delete this.services[path];
+		    }
+		}
+		return;
+	    }
 	    /* If the menu was opened, trigger a wifi scan.
 	     * ConnMan discards wifi scan results after a timeout. */
 
@@ -898,37 +915,59 @@ const ConnManager = new Lang.Class({
 
     startListner: function() {
 	this.manager_sig_services = this._manager.connectSignal('ServicesChanged', Lang.bind(this, function(proxy, sender, [changed, removed]) {
+	    if (_menuopen) {
+		for each (let path_rem in removed) {
+		    this.services[path_rem].service.set_inactive();
+		};
 
-	    for each (let path_rem in removed) {
-		this.services[path_rem].service.Item.destroy();
-		delete this.services[path_rem];
-	    };
+		for each (let [path, properties] in changed) {
+		    if (Object.getOwnPropertyDescriptor(this.services, path))
+			continue;
 
-	    if (this._servicesubmenu) {
-		this._servicesubmenu.destroy();
-		this._servicesubmenu = null;
-	    }
-
-	    this._servicemenu.removeAll();
-
-	    let def = changed[0];
-	    if (def[0] != _defaultpath)
-		_defaultpath = null;
-
-	    for each (let [path, properties] in changed) {
-		if (!Object.getOwnPropertyDescriptor(this.services, path)) {
 		    this.services[path] = { service: new ServiceItem(path, properties)};
+
+		    if (this._servicemenu.numMenuItems == MAX_SERVICES) {
+			this._servicesubmenu = new PopupMenu.PopupSubMenuMenuItem(_("More..."));
+			this._servicemenu.addMenuItem(this._servicesubmenu);
+		    }
+
+		    if (this._servicesubmenu)
+			this._servicesubmenu.menu.addMenuItem(this.services[path].service.CreateMenuItem());
+		    else
+			this._servicemenu.addMenuItem(this.services[path].service.CreateMenuItem());
+		}
+	    } else {
+		for each (let path_rem in removed) {
+		    this.services[path_rem].service.Item.destroy();
+		    delete this.services[path_rem];
+		};
+
+		if (this._servicesubmenu) {
+		    this._servicesubmenu.destroy();
+		    this._servicesubmenu = null;
 		}
 
-		if (this._servicemenu.numMenuItems == MAX_SERVICES) {
-		    this._servicesubmenu = new PopupMenu.PopupSubMenuMenuItem(_("More..."));
-		    this._servicemenu.addMenuItem(this._servicesubmenu);
-		}
+		this._servicemenu.removeAll();
 
-		if (this._servicesubmenu)
-		    this._servicesubmenu.menu.addMenuItem(this.services[path].service.CreateMenuItem());
-		else
-		    this._servicemenu.addMenuItem(this.services[path].service.CreateMenuItem());
+		let def = changed[0];
+		if (def[0] != _defaultpath)
+		    _defaultpath = null;
+
+		for each (let [path, properties] in changed) {
+		    if (!Object.getOwnPropertyDescriptor(this.services, path)) {
+			this.services[path] = { service: new ServiceItem(path, properties)};
+		    }
+
+		    if (this._servicemenu.numMenuItems == MAX_SERVICES) {
+			this._servicesubmenu = new PopupMenu.PopupSubMenuMenuItem(_("More..."));
+			this._servicemenu.addMenuItem(this._servicesubmenu);
+		    }
+
+		    if (this._servicesubmenu)
+			this._servicesubmenu.menu.addMenuItem(this.services[path].service.CreateMenuItem());
+		    else
+			this._servicemenu.addMenuItem(this.services[path].service.CreateMenuItem());
+		}
 	    }
 	}));
     },
