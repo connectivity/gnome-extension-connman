@@ -875,9 +875,9 @@ const ConnManager = new Lang.Class({
 		else
 		    this._servicemenu.addMenuItem(this.services[path].service.CreateMenuItem());
 	    };
-	}));
 
 	this.startListner();
+	}));
 
 	this.menu.connect('open-state-changed', Lang.bind(this, function(menu, open) {
 	    if (!open)
