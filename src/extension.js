@@ -464,20 +464,14 @@ const TechnologyItem = new Lang.Class({
 		this.sw.setToggleState(value.deep_unpack());
 	}));
 
-	/* If the property of the technology has changed by the time we were
-	 * iterating through the list of technologiess via GetTechnologies we
-	 * would have missed the PropertyChanged signal. Do an explicit GetProperty
-	 * on the technology to make sure the properties are properly updated. 
-	 */
-	this.proxy.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
-	    let properties = result[0];
-	    this.sw.setToggleState(properties.Powered.deep_unpack());
-	}));
-
 	this.sw.connect('toggled',  Lang.bind(this, function(item, state) {
 	    let val = GLib.Variant.new('b', state);
 	    this.proxy.SetPropertyRemote('Powered', val);
 	}));
+    },
+
+    UpdateProperties: function(properties) {
+	this.sw.setToggleState(properties.Powered.deep_unpack());
     },
 
     CleanUp: function() {
@@ -844,22 +838,10 @@ const ConnManager = new Lang.Class({
 	    delete this.technologies[path];
 	}));
 
-	this._manager.GetTechnologiesRemote(Lang.bind(this, function(result, excp) {
-	/* result contains the exported Technologies.
-	 * technologies is a array: a(oa{sv}), each element consists of [path, Properties]
-	*/
-	    let tech_array = result[0];
-	    for each (let [path, properties] in tech_array) {
-		if (Object.getOwnPropertyDescriptor(this.technologies, path)) {
-		    return;
-		}
-
-		this.technologies[path] = { technology: new TechnologyItem(path, properties)};
-		this._techmenu.addMenuItem(this.technologies[path].technology.sw);
-	    };
-	}));
+	this._manager.GetTechnologiesRemote(Lang.bind(this, this.get_technologies));
 
 	/* Services Section */
+
 	/* We cannot start listening to the ServiceChanged signal before GetServices,
 	 *  as we might get a service whose properties are null and which can only be obtained by GetServices.
 	 */
@@ -911,6 +893,29 @@ const ConnManager = new Lang.Class({
 	    let wifi = this.technologies['/net/connman/technology/wifi'];
 	    wifi.technology.proxy.ScanRemote();
 	}));
+    },
+
+    get_technologies: function(result, excp) {
+	/* result contains the exported Technologies.
+	 * technologies is a array: a(oa{sv}), each element consists of [path, Properties]
+	*/
+	let update = false;
+	let tech_array = result[0];
+
+	for each (let [path, properties] in tech_array) {
+	    if (Object.getOwnPropertyDescriptor(this.technologies, path)) {
+		this.technologies[path].technology.UpdateProperties(properties);
+	    } else {
+		this.technologies[path] = { technology: new TechnologyItem(path, properties)};
+		update = true;
+	    }
+		this._techmenu.addMenuItem(this.technologies[path].technology.sw);
+	};
+
+	if (update) {
+	    global.log('updating techs');
+	    this._manager.GetTechnologiesRemote(Lang.bind(this, this.get_technologies));
+	}
     },
 
     startListner: function() {
