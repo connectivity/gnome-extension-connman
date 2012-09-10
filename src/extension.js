@@ -912,10 +912,8 @@ const ConnManager = new Lang.Class({
 		this._techmenu.addMenuItem(this.technologies[path].technology.sw);
 	};
 
-	if (update) {
-	    global.log('updating techs');
+	if (update)
 	    this._manager.GetTechnologiesRemote(Lang.bind(this, this.get_technologies));
-	}
     },
 
     startListner: function() {
