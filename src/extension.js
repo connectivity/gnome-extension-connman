@@ -736,9 +736,9 @@ const ServiceItem = new Lang.Class({
 	    return this.name;
     },
 
-    set_inactive: function() {
-	this.marked_inactive = true;
-        this.Item.setSensitive(false);
+    set_inactive: function(inactive) {
+	this.marked_inactive = inactive;
+        this.Item.setSensitive(!inactive);
     },
 
     CleanUp: function() {
@@ -917,12 +917,15 @@ const ConnManager = new Lang.Class({
 	this.manager_sig_services = this._manager.connectSignal('ServicesChanged', Lang.bind(this, function(proxy, sender, [changed, removed]) {
 	    if (_menuopen) {
 		for each (let path_rem in removed) {
-		    this.services[path_rem].service.set_inactive();
+		    this.services[path_rem].service.set_inactive(true);
 		};
 
 		for each (let [path, properties] in changed) {
-		    if (Object.getOwnPropertyDescriptor(this.services, path))
+		    if (Object.getOwnPropertyDescriptor(this.services, path)) {
+			if (this.services[path].service.marked_inactive)
+			    this.services[path].service.set_inactive(false);
 			continue;
+		    }
 
 		    this.services[path] = { service: new ServiceItem(path, properties)};
 
