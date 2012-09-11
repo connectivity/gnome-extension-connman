@@ -795,6 +795,8 @@ const ConnManager = new Lang.Class({
 	this._servicemenu = new PopupMenu.PopupMenuSection();
 	this.menu.addMenuItem(this._servicemenu);
 
+	this._servicesubmenu = null;
+
 	this._manager = new Manager();
 
 	/* Registering the Agent */
@@ -856,20 +858,12 @@ const ConnManager = new Lang.Class({
 	*/
 	    let serv_array = result[0];
 	    for each (let [path, properties] in serv_array) {
+		if (Object.getOwnPropertyDescriptor(this.services, path))
+		    continue;
 		this.services[path] = { service: new ServiceItem(path, properties)};
-
-		if (this._servicemenu.numMenuItems == MAX_SERVICES) {
-		    this._servicesubmenu = new PopupMenu.PopupSubMenuMenuItem(_("More..."));
-		    this._servicemenu.addMenuItem(this._servicesubmenu);
-		}
-
-		if (this._servicesubmenu)
-		    this._servicesubmenu.menu.addMenuItem(this.services[path].service.CreateMenuItem());
-		else
-		    this._servicemenu.addMenuItem(this.services[path].service.CreateMenuItem());
+		this.add_service(this.services[path].service);
 	    };
-
-	this.startListner();
+	    this.startListner();
 	}));
 
 	this.menu.connect('open-state-changed', Lang.bind(this, function(menu, open) {
@@ -885,6 +879,7 @@ const ConnManager = new Lang.Class({
 		}
 		return;
 	    }
+
 	    /* If the menu was opened, trigger a wifi scan.
 	     * ConnMan discards wifi scan results after a timeout. */
 
@@ -896,6 +891,30 @@ const ConnManager = new Lang.Class({
 	    let wifi = this.technologies['/net/connman/technology/wifi'];
 	    wifi.technology.proxy.ScanRemote();
 	}));
+    },
+
+    add_service: function(service) {
+	if (this._servicemenu.numMenuItems > MAX_SERVICES && this._servicesubmenu == null) {
+	    this._servicesubmenu = new PopupMenu.PopupSubMenuMenuItem(_("More..."));
+	    this._servicemenu.addMenuItem(this._servicesubmenu);
+	}
+
+	if (this._servicesubmenu)
+	    this._servicesubmenu.menu.addMenuItem(service.CreateMenuItem());
+	else
+	    this._servicemenu.addMenuItem(service.CreateMenuItem());
+    },
+
+    remove_service: function(path) {
+	if (!Object.getOwnPropertyDescriptor(this.services, path))
+	    return;
+
+	if (_menuopen) {
+	    this.services[path].service.set_inactive(true);
+	} else {
+	    this.services[path_rem].service.Item.destroy();
+	    delete this.services[path_rem];
+	}
     },
 
     get_technologies: function(result, excp) {
@@ -921,62 +940,33 @@ const ConnManager = new Lang.Class({
 
     startListner: function() {
 	this.manager_sig_services = this._manager.connectSignal('ServicesChanged', Lang.bind(this, function(proxy, sender, [changed, removed]) {
-	    if (_menuopen) {
-		for each (let path_rem in removed) {
-		    this.services[path_rem].service.set_inactive(true);
-		};
 
-		for each (let [path, properties] in changed) {
-		    if (Object.getOwnPropertyDescriptor(this.services, path)) {
-			if (this.services[path].service.marked_inactive)
-			    this.services[path].service.set_inactive(false);
-			continue;
-		    }
+	    for each (let path_rem in removed) {
+		this.remove_service(path_rem);
+	    };
 
-		    this.services[path] = { service: new ServiceItem(path, properties)};
-
-		    if (this._servicemenu.numMenuItems == MAX_SERVICES) {
-			this._servicesubmenu = new PopupMenu.PopupSubMenuMenuItem(_("More..."));
-			this._servicemenu.addMenuItem(this._servicesubmenu);
-		    }
-
-		    if (this._servicesubmenu)
-			this._servicesubmenu.menu.addMenuItem(this.services[path].service.CreateMenuItem());
-		    else
-			this._servicemenu.addMenuItem(this.services[path].service.CreateMenuItem());
-		}
-	    } else {
-		for each (let path_rem in removed) {
-		    this.services[path_rem].service.Item.destroy();
-		    delete this.services[path_rem];
-		};
-
-		if (this._servicesubmenu) {
-		    this._servicesubmenu.destroy();
-		    this._servicesubmenu = null;
-		}
+	    if (_menuopen == false) {
+		this._servicesubmenu.destroy();
+		this._servicesubmenu = null;
 
 		this._servicemenu.removeAll();
 
 		let def = changed[0];
 		if (def[0] != _defaultpath)
 		    _defaultpath = null;
+	    }
 
-		for each (let [path, properties] in changed) {
-		    if (!Object.getOwnPropertyDescriptor(this.services, path)) {
-			this.services[path] = { service: new ServiceItem(path, properties)};
-		    }
-
-		    if (this._servicemenu.numMenuItems == MAX_SERVICES) {
-			this._servicesubmenu = new PopupMenu.PopupSubMenuMenuItem(_("More..."));
-			this._servicemenu.addMenuItem(this._servicesubmenu);
-		    }
-
-		    if (this._servicesubmenu)
-			this._servicesubmenu.menu.addMenuItem(this.services[path].service.CreateMenuItem());
-		    else
-			this._servicemenu.addMenuItem(this.services[path].service.CreateMenuItem());
+	    for each (let [path, properties] in changed) {
+		if (Object.getOwnPropertyDescriptor(this.services, path)) {
+		    if (_menuopen) {
+			if (this.services[path].service.marked_inactive)
+			    this.services[path].service.set_inactive(false);
+		    } else
+			this.add_service(this.services[path].service)
+		    continue;
 		}
+		this.services[path] = { service: new ServiceItem(path, properties)};
+		this.add_service(this.services[path].service)
 	    }
 	}));
     },
