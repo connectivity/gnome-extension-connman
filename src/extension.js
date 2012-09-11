@@ -475,6 +475,7 @@ const TechnologyItem = new Lang.Class({
     },
 
     CleanUp: function() {
+	this.proxy.disconnectSignal(this.tech_sig_prop);
 	this.sw.destroy();
     }
 });
@@ -736,6 +737,7 @@ const ServiceItem = new Lang.Class({
     },
 
     CleanUp: function() {
+	this.proxy.disconnectSignal(this.prop_sig);
 	this.Item.destroy();
     }
 });
@@ -818,6 +820,7 @@ const ConnManager = new Lang.Class({
 	}));
 
 	/* Technology Section */
+
 	/* We first start listening to the signals, since we can miss a Technology added or removed while we are parsing the results of GetTechnologies */
 	this.manager_sig_techadd = this._manager.connectSignal('TechnologyAdded', Lang.bind(this, function(proxy, sender,[path, properties]) {
 	    if (Object.getOwnPropertyDescriptor(this.technologies, path)) {
