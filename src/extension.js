@@ -912,8 +912,8 @@ const ConnManager = new Lang.Class({
 	if (_menuopen) {
 	    this.services[path].service.set_inactive(true);
 	} else {
-	    this.services[path_rem].service.Item.destroy();
-	    delete this.services[path_rem];
+	    this.services[path].service.Item.destroy();
+	    delete this.services[path];
 	}
     },
 
