@@ -968,7 +968,6 @@ const ConnManager = new Lang.Class({
 
 	    let [defpath, defprop] = changed[0];
 	    _defaultpath = defpath;
-	    global.log('default path:' + _defaultpath);
 
 	    let update = false;
 
