@@ -551,6 +551,11 @@ const ServiceItem = new Lang.Class({
 	else
 	    this.error = null;
 
+	if (_defaultpath == null) {
+	    _defaultpath = this.path;
+	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
+	}
+
 	this.prop_sig = this.proxy.connectSignal('PropertyChanged', Lang.bind(this, function(proxy, sender,[property, value]) {
 		if (property == 'Strength')
 		    this.set_strength(value.deep_unpack());
@@ -595,11 +600,6 @@ const ServiceItem = new Lang.Class({
 	this._signalIcon = new St.Icon({ icon_name: getIcon(this.type, this.strength),
 						 style_class: 'popup-menu-icon' });
 	this._icons.add_actor(this._signalIcon);
-
-	if (_defaultpath == null) {
-	    _defaultpath = this.path;
-	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
-	}
 
 	this.Item.connect('activate', Lang.bind(this, this.clicked));
 
@@ -734,6 +734,24 @@ const ServiceItem = new Lang.Class({
     set_inactive: function(inactive) {
 	this.marked_inactive = inactive;
         this.Item.setSensitive(!inactive);
+    },
+
+    UpdateProperties: function(properties) {
+	if (this.strength != properties.Strength.deep_unpack())
+	    this.set_strength(properties.Strength.deep_unpack());
+	if (this.state != properties.State.deep_unpack())
+	    this.set_state(properties.State.deep_unpack());
+	if (this.favorite != properties.Favorite.deep_unpack())
+	    this.set_favorite(properties.Favorite.value.deep_unpack());
+	if (this.name != properties.Name.deep_unpack())
+	    this.set_name(properties.Name.deep_unpack());
+	if (this.error != properties.Error.deep_unpack())
+	    this.set_error(properties.Error.deep_unpack());
+
+	if (_defaultpath == null) {
+	    _defaultpath = this.path;
+	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
+	}
     },
 
     CleanUp: function() {
@@ -950,11 +968,13 @@ const ConnManager = new Lang.Class({
 		this._servicesubmenu = null;
 
 		this._servicemenu.removeAll();
-
-		let def = changed[0];
-		if (def[0] != _defaultpath)
-		    _defaultpath = null;
 	    }
+
+	    let def = changed[0];
+	    if (def[0] != _defaultpath)
+		_defaultpath = null;
+
+	    let update = false;
 
 	    for each (let [path, properties] in changed) {
 		if (Object.getOwnPropertyDescriptor(this.services, path)) {
@@ -963,12 +983,29 @@ const ConnManager = new Lang.Class({
 			    this.services[path].service.set_inactive(false);
 		    } else
 			this.add_service(this.services[path].service)
-		} else {
-		    this.services[path] = { service: new ServiceItem(path, properties)};
-		    this.add_service(this.services[path].service)
-		}
+		} else
+		    update = true;
 	    }
+
+	    if (update == true)
+		this._manager.GetServicesRemote(Lang.bind(this, this.get_services));
 	}));
+    },
+
+    get_services: function(result, excp) {
+	let serv_array = result[0];
+	let update = false;
+	for each (let [path, properties] in serv_array) {
+	    if (Object.getOwnPropertyDescriptor(this.services, path)) {
+		this.services[path].service.UpdateProperties(properties);
+	    } else {
+		this.services[path] = { service: new ServiceItem(path, properties)};
+		this.add_service(this.services[path].service);
+		update = true;
+	    }
+	};
+	if (update == true)
+	    this._manager.GetServicesRemote(Lang.bind(this, this.get_services));
     },
 
     ConnmanVanished: function() {
