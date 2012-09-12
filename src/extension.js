@@ -963,10 +963,10 @@ const ConnManager = new Lang.Class({
 			    this.services[path].service.set_inactive(false);
 		    } else
 			this.add_service(this.services[path].service)
-		    continue;
+		} else {
+		    this.services[path] = { service: new ServiceItem(path, properties)};
+		    this.add_service(this.services[path].service)
 		}
-		this.services[path] = { service: new ServiceItem(path, properties)};
-		this.add_service(this.services[path].service)
 	    }
 	}));
     },
