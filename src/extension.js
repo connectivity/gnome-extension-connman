@@ -551,10 +551,8 @@ const ServiceItem = new Lang.Class({
 	else
 	    this.error = null;
 
-	if (_defaultpath == null) {
-	    _defaultpath = this.path;
+	if (_defaultpath == this.path)
 	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
-	}
 
 	this.prop_sig = this.proxy.connectSignal('PropertyChanged', Lang.bind(this, function(proxy, sender,[property, value]) {
 		if (property == 'Strength')
@@ -748,10 +746,8 @@ const ServiceItem = new Lang.Class({
 	if (this.error != properties.Error.deep_unpack())
 	    this.set_error(properties.Error.deep_unpack());
 
-	if (_defaultpath == null) {
-	    _defaultpath = this.path;
+	if (_defaultpath == this.path)
 	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
-	}
     },
 
     CleanUp: function() {
@@ -970,9 +966,9 @@ const ConnManager = new Lang.Class({
 		this._servicemenu.removeAll();
 	    }
 
-	    let def = changed[0];
-	    if (def[0] != _defaultpath)
-		_defaultpath = null;
+	    let [defpath, defprop] = changed[0];
+	    _defaultpath = defpath;
+	    global.log('default path:' + _defaultpath);
 
 	    let update = false;
 
