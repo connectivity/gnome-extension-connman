@@ -278,8 +278,8 @@ const PassphraseDialog = new Lang.Class({
 	    this.okButton.button.can_focus = true;
 	    this.okButton.button.remove_style_pseudo_class('disabled');
 	} else {
-	    this.okButton.button.reactive = true;
-	    this.okButton.button.can_focus = true;
+	    this.okButton.button.reactive = false;
+	    this.okButton.button.can_focus = false;
 	    this.okButton.button.add_style_pseudo_class('disabled');
 	}
     }
