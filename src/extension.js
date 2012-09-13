@@ -750,6 +750,11 @@ const ServiceItem = new Lang.Class({
 	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
     },
 
+    check_default: function() {
+	if (_defaultpath == this.path)
+	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
+    },
+
     CleanUp: function() {
 	this.proxy.disconnectSignal(this.prop_sig);
 	this.Item.destroy();
@@ -880,6 +885,8 @@ const ConnManager = new Lang.Class({
 	    this.startListner();
 	}));
 
+
+
 	this.menu.connect('open-state-changed', Lang.bind(this, function(menu, open) {
 	    _menuopen = open;
 
@@ -891,8 +898,29 @@ const ConnManager = new Lang.Class({
 			delete this.services[path];
 		    }
 		}
+
 		return;
 	    }
+
+	    this._manager.disconnectSignal(this.manager_sig_services);
+
+	    /* Reorder the entire menu, as the order might have changed */
+	    if (this._servicesubmenu) {
+		this._servicesubmenu.destroy();
+		this._servicesubmenu = null;
+	    }
+
+	    this._servicemenu.removeAll();
+
+	    this._manager.GetServicesRemote(Lang.bind(this, function(result, excp) {
+		let serv_array = result[0];
+		for each (let [path, properties] in serv_array) {
+		    if (!Object.getOwnPropertyDescriptor(this.services, path))
+			this.services[path] = { service: new ServiceItem(path, properties)};
+		    this.add_service(this.services[path].service);
+		};
+		this.startListner();
+	    }));
 
 	    /* If the menu was opened, trigger a wifi scan.
 	     * ConnMan discards wifi scan results after a timeout. */
@@ -905,6 +933,27 @@ const ConnManager = new Lang.Class({
 	    let wifi = this.technologies['/net/connman/technology/wifi'];
 	    wifi.technology.proxy.ScanRemote();
 	}));
+    },
+
+    get_technologies: function(result, excp) {
+	/* result contains the exported Technologies.
+	 * technologies is a array: a(oa{sv}), each element consists of [path, Properties]
+	*/
+	let update = false;
+	let tech_array = result[0];
+
+	for each (let [path, properties] in tech_array) {
+	    if (Object.getOwnPropertyDescriptor(this.technologies, path)) {
+		this.technologies[path].technology.UpdateProperties(properties);
+	    } else {
+		this.technologies[path] = { technology: new TechnologyItem(path, properties)};
+		update = true;
+	    }
+		this._techmenu.addMenuItem(this.technologies[path].technology.sw);
+	};
+
+	if (update)
+	    this._manager.GetTechnologiesRemote(Lang.bind(this, this.get_technologies));
     },
 
     add_service: function(service) {
@@ -931,27 +980,6 @@ const ConnManager = new Lang.Class({
 	}
     },
 
-    get_technologies: function(result, excp) {
-	/* result contains the exported Technologies.
-	 * technologies is a array: a(oa{sv}), each element consists of [path, Properties]
-	*/
-	let update = false;
-	let tech_array = result[0];
-
-	for each (let [path, properties] in tech_array) {
-	    if (Object.getOwnPropertyDescriptor(this.technologies, path)) {
-		this.technologies[path].technology.UpdateProperties(properties);
-	    } else {
-		this.technologies[path] = { technology: new TechnologyItem(path, properties)};
-		update = true;
-	    }
-		this._techmenu.addMenuItem(this.technologies[path].technology.sw);
-	};
-
-	if (update)
-	    this._manager.GetTechnologiesRemote(Lang.bind(this, this.get_technologies));
-    },
-
     startListner: function() {
 	this.manager_sig_services = this._manager.connectSignal('ServicesChanged', Lang.bind(this, function(proxy, sender, [changed, removed]) {
 
@@ -959,27 +987,23 @@ const ConnManager = new Lang.Class({
 		this.remove_service(path_rem);
 	    };
 
-	    if (_menuopen == false) {
-		this._servicesubmenu.destroy();
-		this._servicesubmenu = null;
-
-		this._servicemenu.removeAll();
-	    }
-
 	    let [defpath, defprop] = changed[0];
 	    _defaultpath = defpath;
 
 	    let update = false;
 
 	    for each (let [path, properties] in changed) {
+		/* if service is already present, and menu is open activate it if its inactive */
+		/* if menu is closed, mark for reorder */
 		if (Object.getOwnPropertyDescriptor(this.services, path)) {
-		    if (_menuopen) {
-			if (this.services[path].service.marked_inactive)
+		    if (_menuopen && this.services[path].service.marked_inactive)
 			    this.services[path].service.set_inactive(false);
-		    } else
-			this.add_service(this.services[path].service)
-		} else
+		    this.services[path].service.check_default();
+		} else {
+		/* if service is new, and menu is open add it to the end of the menu */
+		/* if menu is closed, mark for reorder */
 		    update = true;
+		}
 	    }
 
 	    if (update == true)
@@ -989,18 +1013,20 @@ const ConnManager = new Lang.Class({
 
     get_services: function(result, excp) {
 	let serv_array = result[0];
-	let update = false;
+
+	/* if old service then update the property if new service
+	create the service and add it to the end */
+
 	for each (let [path, properties] in serv_array) {
 	    if (Object.getOwnPropertyDescriptor(this.services, path)) {
 		this.services[path].service.UpdateProperties(properties);
 	    } else {
 		this.services[path] = { service: new ServiceItem(path, properties)};
-		this.add_service(this.services[path].service);
-		update = true;
+		if (_menuopen) {
+		    this.add_service(this.services[path].service);
+		}
 	    }
 	};
-	if (update == true)
-	    this._manager.GetServicesRemote(Lang.bind(this, this.get_services));
     },
 
     ConnmanVanished: function() {
