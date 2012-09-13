@@ -1066,7 +1066,8 @@ const ConnManager = new Lang.Class({
 	delete this.technologies;
 
 	/* Services cleanup */
-	this._manager.disconnectSignal(this.manager_sig_services);
+	if (this.manager_sig_services)
+	    this._manager.disconnectSignal(this.manager_sig_services);
 
 	for each (let path1 in Object.keys(this.services)) {
 	    this.services[path1].service.CleanUp();
