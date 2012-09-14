@@ -40,7 +40,6 @@ const BUS_NAME = 'net.connman';
 let _extension = null;
 let _defaultpath = null;
 let _agent = null;
-let _menuopen = false;
 
 function signalToIcon(value) {
     if (value > 80)
@@ -735,15 +734,15 @@ const ServiceItem = new Lang.Class({
     },
 
     UpdateProperties: function(properties) {
-	if (this.strength != properties.Strength.deep_unpack())
+	if (properties.Strength && this.strength != properties.Strength.deep_unpack())
 	    this.set_strength(properties.Strength.deep_unpack());
-	if (this.state != properties.State.deep_unpack())
+	if (properties.State && this.state != properties.State.deep_unpack())
 	    this.set_state(properties.State.deep_unpack());
-	if (this.favorite != properties.Favorite.deep_unpack())
+	if (properties.Favorite && this.favorite != properties.Favorite.deep_unpack())
 	    this.set_favorite(properties.Favorite.value.deep_unpack());
-	if (this.name != properties.Name.deep_unpack())
+	if (properties.Name && this.name != properties.Name.deep_unpack())
 	    this.set_name(properties.Name.deep_unpack());
-	if (this.error != properties.Error.deep_unpack())
+	if (properties.Error && this.error != properties.Error.deep_unpack())
 	    this.set_error(properties.Error.deep_unpack());
 
 	if (_defaultpath == this.path)
@@ -765,6 +764,7 @@ const ConnManager = new Lang.Class({
     Name: 'ConnManager',
     Extends: PanelMenu.SystemStatusButton,
     run: false,
+    _menuopen: false,
 
     _init: function() {
 	this.parent('network-offline-symbolic', _("Network"));
@@ -888,7 +888,7 @@ const ConnManager = new Lang.Class({
 
 
 	this.menu.connect('open-state-changed', Lang.bind(this, function(menu, open) {
-	    _menuopen = open;
+	    this._menuopen = open;
 
 	    if (!open) {
 		let paths = Object.getOwnPropertyNames(this.services);
@@ -972,7 +972,7 @@ const ConnManager = new Lang.Class({
 	if (!Object.getOwnPropertyDescriptor(this.services, path))
 	    return;
 
-	if (_menuopen) {
+	if (this._menuopen) {
 	    this.services[path].service.set_inactive(true);
 	} else {
 	    this.services[path].service.Item.destroy();
@@ -996,7 +996,7 @@ const ConnManager = new Lang.Class({
 		/* if service is already present, and menu is open activate it if its inactive */
 		/* if menu is closed, mark for reorder */
 		if (Object.getOwnPropertyDescriptor(this.services, path)) {
-		    if (_menuopen && this.services[path].service.marked_inactive)
+		    if (this._menuopen && this.services[path].service.marked_inactive)
 			    this.services[path].service.set_inactive(false);
 		    this.services[path].service.check_default();
 		} else {
@@ -1022,15 +1022,16 @@ const ConnManager = new Lang.Class({
 		this.services[path].service.UpdateProperties(properties);
 	    } else {
 		this.services[path] = { service: new ServiceItem(path, properties)};
-		if (_menuopen) {
+		if (this._menuopen) {
 		    this.add_service(this.services[path].service);
 		}
 	    }
-	};
+	}
     },
 
     ConnmanVanished: function() {
 	this.run = false;
+	this._menuopen = false;
 	this.setIcon('network-offline-symbolic');
 	_defaultpath = null;
 	this._noconnman = new PopupMenu.PopupMenuSection();
