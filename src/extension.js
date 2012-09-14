@@ -914,6 +914,10 @@ const ConnManager = new Lang.Class({
 
 	    this._manager.GetServicesRemote(Lang.bind(this, function(result, excp) {
 		let serv_array = result[0];
+
+		let [defpath, defprop] = serv_array[0];
+		_defaultpath = defpath;
+
 		for each (let [path, properties] in serv_array) {
 		    if (!Object.getOwnPropertyDescriptor(this.services, path))
 			this.services[path] = { service: new ServiceItem(path, properties)};
