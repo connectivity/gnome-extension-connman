@@ -281,6 +281,12 @@ const PassphraseDialog = new Lang.Class({
 	    this.okButton.button.can_focus = false;
 	    this.okButton.button.add_style_pseudo_class('disabled');
 	}
+    },
+
+    CleanUp: function() {
+	this.close();
+	Mainloop.source_remove(this.timeoutid);
+	this.destroy();
     }
 });
 /* UI PASSPHRASE DIALOG SECTION ENDS*/
@@ -379,9 +385,11 @@ const Agent = new Lang.Class({
 
     CleanUp: function() {
 	if (this.dialog)
-	    this.dialog.onCancel();
+	    this.dialog.CleanUp();
+
 	if (this.err_dialog)
 	    this.err_dialog.destroy();
+
 	if (this.source)
 	    this.source.destroy();
     }
