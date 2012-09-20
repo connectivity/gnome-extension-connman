@@ -41,6 +41,16 @@ let _extension = null;
 let _defaultpath = null;
 let _agent = null;
 
+const description_hidden_psk	= _("Passwords or encryption keys are required to access the Hidden wireless network");
+const description_hidden_open	= _("Network Name is required to access the Hidden wireless network");
+const description_wpa		= _("Passwords or encryption keys are required to access the wireless network ");
+
+const security_wpa	= _("This access point is using WPA personal security.\nA passphrase of min 8 characters is required to access the network.");
+const security_wep	= _("This access point is using WEP security.\nA key of 10, 26 or 58 characters is required to access the network.");
+const security_enter	= _("This access point is using WPA Enterprise security.\nA passphrase is required to access the network.");
+const security_wps	= _("This access point is using WPS security.\nEither push the push-button on the AP or enter a 8 digit PIN to access the network.");
+const security_wispr	= _("This hotspot is using WISPr.\nA password is required to access the network.");
+
 function signalToIcon(value) {
     if (value > 80)
         return 'excellent';
@@ -109,9 +119,10 @@ const PassphraseDialog = new Lang.Class({
     _init: function(ssid, fields, invocation) {
 	this.parent({ styleClass: 'prompt-dialog' });
 	this.invocation = invocation;
+	this.fields = fields;
+	this.usingWPS = false;
 	/* Create the main container of the dialog */
-        let mainContentBox = new St.BoxLayout({ style_class: 'prompt-dialog-main-layout',
-                                                vertical: false });
+	let mainContentBox = new St.BoxLayout({ style_class: 'prompt-dialog-main-layout', vertical: false });
         this.contentLayout.add(mainContentBox,
                                { x_fill: true,
                                  y_fill: true });
@@ -125,43 +136,65 @@ const PassphraseDialog = new Lang.Class({
                              y_align: St.Align.START });
 
 	/* Add a Message to the container */
-        let messageBox = new St.BoxLayout({ style_class: 'prompt-dialog-message-layout',
+        this.messageBox = new St.BoxLayout({ style_class: 'prompt-dialog-message-layout',
                                             vertical: true });
-        mainContentBox.add(messageBox,
+        mainContentBox.add(this.messageBox,
                            { y_align: St.Align.START });
 
 	/* Add a Header Label in the Message */
         let subjectLabel = new St.Label({ style_class: 'prompt-dialog-headline',
 					  text: "Authentication required by wireless network"});
-        messageBox.add(subjectLabel,
+        this.messageBox.add(subjectLabel,
                        { y_fill:  false,
                          y_align: St.Align.START });
 
 	/* Add a Description Label in the Message */
         this.descriptionLabel = new St.Label({ style_class: 'prompt-dialog-description', text: "" });
-        messageBox.add(this.descriptionLabel,{ y_fill: true, y_align: St.Align.START, expand: true });
+        this.messageBox.add(this.descriptionLabel,{ y_fill: true, y_align: St.Align.START, expand: true });
 
 	/* Set the description lable according to the ssid name */
 	if (ssid == 'Hidden Network') {
-	    if (fields['Passphrase'])
-		this.descriptionLabel.text = _("Passwords or encryption keys are required to access the Hidden wireless network");
+	    if (this.fields['Passphrase'])
+		this.descriptionLabel.text = description_hidden_psk;
 	    else
-		this.descriptionLabel.text = _("Network Name is required to access the Hidden wireless network");
+		this.descriptionLabel.text = description_hidden_open;
 	} else
-	    this.descriptionLabel.text = _("Passwords or encryption keys are required to access the wireless network ")  + ssid;
+	    this.descriptionLabel.text = description_wpa + ssid;
 
         this.descriptionLabel.style = 'height: 3em';
         this.descriptionLabel.clutter_text.line_wrap = true;
 
-	/* If Name field is requested */
-	if (fields['Name']) {
+	if (this.fields['Name'])
+	    this.str1 = 'Name';
+	else if (this.fields['Identity'])
+	    this.str1 = 'Identity';
+	else if (this.fields['Username'])
+	    this.str1 = 'Username';
+	else
+	    this.str1 = null;
+
+	/* If Name/Username/Identity field is requested */
+	if (this.str1) {
 	    /* Create a box container */
             this.nameBox = new St.BoxLayout({ vertical: false });
-            messageBox.add(this.nameBox);
+            this.messageBox.add(this.nameBox);
 
 	    /* Name Label */
-            this.nameLabel = new St.Label(({ style_class: 'prompt-dialog-description', text: "        Name " }));
+            this.nameLabel = new St.Label(({ style_class: 'prompt-dialog-description', text: "" }));
             this.nameBox.add(this.nameLabel);
+
+	    switch(this.str1) {
+	    case 'Name':
+		this.nameLabel.text = "        Name ";
+		break;
+	    case 'Identity':
+		this.nameLabel.text = "    Identity ";
+		break;
+	    case 'Username':
+		this.nameLabel.text = "    Username ";
+		break;
+	    };
+
 	    /* Name Entry */
             this._nameEntry = new St.Entry({ style_class: 'prompt-dialog-password-entry', text: "",
 						 can_focus: true});
@@ -169,15 +202,35 @@ const PassphraseDialog = new Lang.Class({
             this.nameBox.add(this._nameEntry, {expand: true });
 	}
 
-	/* If Passphrase field is requested */
-	if (fields['Passphrase']) {
+	if (this.fields['Passphrase'])
+	    this.str2 = 'Passphrase';
+	else if (this.fields['Password'])
+	    this.str2 = 'Password';
+	else
+	    this.str2 = null;
+
+	this.type = null;
+
+	if (this.str2) {
 	    /* Create a box container */
             this.passphraseBox = new St.BoxLayout({ vertical: false });
-	    messageBox.add(this.passphraseBox);
+	    this.messageBox.add(this.passphraseBox);
 
 	    /* Passphrase Label */
-            this.passphraseLabel = new St.Label(({ style_class: 'prompt-dialog-description', text: "Passphrase  "}));
+            this.passphraseLabel = new St.Label(({ style_class: 'prompt-dialog-description', text: ""}));
             this.passphraseBox.add(this.passphraseLabel);
+
+	    switch(this.str2) {
+	    case 'Passphrase':
+		this.passphraseLabel.text = "Passphrase ";
+		break;
+	    case 'Password':
+		this.passphraseLabel.text = "Password   ";
+		break;
+	    };
+
+	    let args = this.fields[this.str2].deep_unpack();
+	    this.type = args.Type.deep_unpack();
 
 	    /* Passphrase Entry */
             this._passphraseEntry = new St.Entry({ style_class: 'prompt-dialog-password-entry', text: "", can_focus: true });
@@ -186,31 +239,42 @@ const PassphraseDialog = new Lang.Class({
 	    this._passphraseEntry.clutter_text.set_password_char('\u25cf');
 
 	    /* If the Passphrase was already provided */
-	    if(fields['PreviousPassphrase']) {
-		let prevpass = fields.PreviousPassphrase.deep_unpack();
-		this._passphraseEntry.text = prevpass.Value.deep_unpack();
+	    if(this.fields['PreviousPassphrase']) {
+		let prevpass = this.fields.PreviousPassphrase.deep_unpack();
+		let prevpass_type = prevpass.Type.deep_unpack();
+
+		if (prevpass_type == this.type)
+		    this._passphraseEntry.text = prevpass.Value.deep_unpack();
 	    }
 
 	    this._passphraseEntry.clutter_text.connect('activate', Lang.bind(this, this.onOk));
 
-	    let args = fields.Passphrase.deep_unpack();
-	    this.type = args.Type.deep_unpack();
-
 	    /* Add a Security Tip */
-	    if (this.type == 'psk' || this.type == 'wep') {
-		this.securityLabel = new St.Label({ style_class: 'prompt-dialog-description', text: "" });
-		messageBox.add(this.securityLabel, { y_fill: true, y_align: St.Align.START, expand: true });
+	    this.securityLabel = new St.Label({ style_class: 'prompt-dialog-description', text: "" });
+	    this.messageBox.add(this.securityLabel, { y_fill: true, y_align: St.Align.START, expand: true });
 
-		if (this.type == 'psk')
-		    this.securityLabel.text = _("This access point is using WPA personal security.\nA passphrase of min 8 characters is required to access the network.");
-		if (this.type == 'wep')
-		    this.securityLabel.text = _("This access point is using WEP security.\nA key of 10, 26 or 58 characters is required to access the network.");
+	    switch(this.type) {
+	    case 'psk':
+		this.securityLabel.text = security_wpa;
+		break;
+	    case 'wep':
+		    this.securityLabel.text = security_wep;
+		break;
+	    case 'response':
+		this.securityLabel.text = security_enter;
+		break;
+	    case 'passphrase':
+		if (this.str2 == 'Passphrase')
+		    this.securityLabel.text = security_enter;
+		else
+		    this.securityLabel.text = security_wispr;
+		break;
+	    };
 
-		this.securityLabel.style = 'height: 5em';
-		this.securityLabel.clutter_text.line_wrap = true;
+	    this.securityLabel.style = 'height: 5em';
+	    this.securityLabel.clutter_text.line_wrap = true;
 
-		this._passphraseEntry.clutter_text.connect('text-changed', Lang.bind(this, this.UpdateOK));
-	    }
+	    this._passphraseEntry.clutter_text.connect('text-changed', Lang.bind(this, this.UpdateOK));
 	}
 
         this.okButton = { label:  _("Connect"),
@@ -226,12 +290,12 @@ const PassphraseDialog = new Lang.Class({
 
 	this.open();
 
-	if (fields['Name'] != null)
+	if (this.str1 != null)
 	    global.stage.set_key_focus(this._nameEntry);
 	else
 	    global.stage.set_key_focus(this._passphraseEntry);
 
-	if (this.type == 'psk' || this.type == 'wep')
+	if (this.type)
 	    this.UpdateOK();
 
 	this.timeoutid = Mainloop.timeout_add(DIALOG_TIMEOUT, Lang.bind(this, function() {
@@ -246,11 +310,11 @@ const PassphraseDialog = new Lang.Class({
 	this.close();
 	Mainloop.source_remove(this.timeoutid);
 
-	if (this._nameEntry)
-	    retval['Name'] = GLib.Variant.new('s', this._nameEntry.get_text());
+	if (this.str1)
+	    retval[this.str1] = GLib.Variant.new('s', this._nameEntry.get_text());
 
-	if (this._passphraseEntry)
-	    retval['Passphrase'] = GLib.Variant.new('s', this._passphraseEntry.get_text());
+	if (this.str2)
+	    retval[this.str2] = GLib.Variant.new('s', this._passphraseEntry.get_text());
 
 	this.invocation.return_value(GLib.Variant.new('(a{sv})', [retval]));
 	this.destroy();
@@ -267,12 +331,27 @@ const PassphraseDialog = new Lang.Class({
 
     UpdateOK: function() {
 	let pass = this._passphraseEntry.get_text();
+	let enable = false;
 
-	if (this.type == 'psk' && (pass.length >= 8 && pass.length <=64)) {
-	    this.okButton.button.reactive = true;
-	    this.okButton.button.can_focus = true;
-	    this.okButton.button.remove_style_pseudo_class('disabled');
-	} else if (this.type == 'wep' && (pass.length == 10 || pass.length == 26 || pass.length == 58)) {
+	switch (this.type) {
+	case 'psk':
+	    if (pass.length > 7 && pass.length < 65)
+		enable = true;
+	    break;
+	case 'wep':
+	    if (pass.length == 10 || pass.length == 26 || pass.length == 58)
+		enable = true;
+	    break;
+	case 'response':
+	case 'passphrase':
+	    if (pass.length > 0)
+		enable = true;
+	    break;
+	default:
+	    enable = false;
+	};
+
+	if (enable) {
 	    this.okButton.button.reactive = true;
 	    this.okButton.button.can_focus = true;
 	    this.okButton.button.remove_style_pseudo_class('disabled');
@@ -1092,6 +1171,7 @@ const ConnManager = new Lang.Class({
 
 	/* Manager cleanup */
 	this._manager.disconnectSignal(this.manager_sig_prop);
+
 	this.offline_switch.destroy();
 
 	delete this._manager;
