@@ -1044,7 +1044,7 @@ const ConnManager = new Lang.Class({
 		let paths = Object.getOwnPropertyNames(this.services);
 		for each (path in paths) {
 		    if (this.services[path].service.marked_inactive) {
-			this.services[path].service.Item.destroy();
+			this.services[path].service.CleanUp();
 			delete this.services[path];
 		    }
 		}
@@ -1126,7 +1126,7 @@ const ConnManager = new Lang.Class({
 	if (this._menuopen) {
 	    this.services[path].service.set_inactive(true);
 	} else {
-	    this.services[path].service.Item.destroy();
+	    this.services[path].service.CleanUp();
 	    delete this.services[path];
 	}
     },
