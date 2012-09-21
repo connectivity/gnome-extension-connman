@@ -30,6 +30,7 @@ const DBus = imports.dbus;
 const ModalDialog = imports.ui.modalDialog;
 const ShellEntry = imports.ui.shellEntry;
 const MessageTray = imports.ui.messageTray;
+const CheckBox = imports.ui.checkBox;
 const _ = Gettext.gettext;
 
 const MAX_SERVICES = 7;
@@ -210,6 +211,7 @@ const PassphraseDialog = new Lang.Class({
 	    this.str2 = null;
 
 	this.type = null;
+	this.wps = null;
 
 	if (this.str2) {
 	    /* Create a box container */
@@ -220,14 +222,7 @@ const PassphraseDialog = new Lang.Class({
             this.passphraseLabel = new St.Label(({ style_class: 'prompt-dialog-description', text: ""}));
             this.passphraseBox.add(this.passphraseLabel);
 
-	    switch(this.str2) {
-	    case 'Passphrase':
-		this.passphraseLabel.text = "Passphrase ";
-		break;
-	    case 'Password':
-		this.passphraseLabel.text = "Password   ";
-		break;
-	    };
+	    this.set_pass_label();
 
 	    let args = this.fields[this.str2].deep_unpack();
 	    this.type = args.Type.deep_unpack();
@@ -238,14 +233,7 @@ const PassphraseDialog = new Lang.Class({
             this.passphraseBox.add(this._passphraseEntry, {expand: true });
 	    this._passphraseEntry.clutter_text.set_password_char('\u25cf');
 
-	    /* If the Passphrase was already provided */
-	    if(this.fields['PreviousPassphrase']) {
-		let prevpass = this.fields.PreviousPassphrase.deep_unpack();
-		let prevpass_type = prevpass.Type.deep_unpack();
-
-		if (prevpass_type == this.type)
-		    this._passphraseEntry.text = prevpass.Value.deep_unpack();
-	    }
+	    this.set_previous_pass();
 
 	    this._passphraseEntry.clutter_text.connect('activate', Lang.bind(this, this.onOk));
 
@@ -253,28 +241,23 @@ const PassphraseDialog = new Lang.Class({
 	    this.securityLabel = new St.Label({ style_class: 'prompt-dialog-description', text: "" });
 	    this.messageBox.add(this.securityLabel, { y_fill: true, y_align: St.Align.START, expand: true });
 
-	    switch(this.type) {
-	    case 'psk':
-		this.securityLabel.text = security_wpa;
-		break;
-	    case 'wep':
-		    this.securityLabel.text = security_wep;
-		break;
-	    case 'response':
-		this.securityLabel.text = security_enter;
-		break;
-	    case 'passphrase':
-		if (this.str2 == 'Passphrase')
-		    this.securityLabel.text = security_enter;
-		else
-		    this.securityLabel.text = security_wispr;
-		break;
-	    };
+	    this.set_security_label();
 
 	    this.securityLabel.style = 'height: 5em';
 	    this.securityLabel.clutter_text.line_wrap = true;
 
 	    this._passphraseEntry.clutter_text.connect('text-changed', Lang.bind(this, this.UpdateOK));
+	}
+
+	if (this.fields['WPS']) {
+	    this.wps = new CheckBox.CheckBox();
+
+	    let label = this.wps.getLabelActor();
+	    label.text = _('Use WPS');
+
+	    this.wps.actor.checked = false;
+	    this.wps.actor.connect('clicked', Lang.bind(this, this.checkWPS));
+	    this.messageBox.add(this.wps.actor);
 	}
 
         this.okButton = { label:  _("Connect"),
@@ -347,6 +330,9 @@ const PassphraseDialog = new Lang.Class({
 	    if (pass.length > 0)
 		enable = true;
 	    break;
+	case 'wpspin':
+	    enable = true;
+	    break;
 	default:
 	    enable = false;
 	};
@@ -359,6 +345,77 @@ const PassphraseDialog = new Lang.Class({
 	    this.okButton.button.reactive = false;
 	    this.okButton.button.can_focus = false;
 	    this.okButton.button.add_style_pseudo_class('disabled');
+	}
+    },
+
+    checkWPS: function() {
+	let label = this.wps.getLabelActor();
+
+	if (this.wps.actor.checked) {
+	    label.text = _('Using WPS');
+
+	    this.old_str2 = this.str2;
+	    this.old_type = this.type;
+
+	    this.str2 = 'WPS';
+	    this.type = 'wpspin';
+	} else {
+	    label.text = _('Use WPS');
+	    this.str2 = this.old_str2;
+	    this.type = this.old_type;
+	}
+
+	this.set_pass_label();
+	this.set_security_label();
+	this.set_previous_pass();
+	this.UpdateOK();
+    },
+
+    set_security_label: function() {
+	switch(this.type) {
+	case 'psk':
+	    this.securityLabel.text = security_wpa;
+	    break;
+	case 'wep':
+	    this.securityLabel.text = security_wep;
+	    break;
+	case 'response':
+	    this.securityLabel.text = security_enter;
+	    break;
+	case 'passphrase':
+	    if (this.str2 == 'Passphrase')
+		this.securityLabel.text = security_enter;
+	    else
+		this.securityLabel.text = security_wispr;
+	    break;
+	case 'wpspin':
+	    this.securityLabel.text = security_wps;
+	    break;
+	};
+    },
+
+    set_pass_label: function() {
+	switch(this.str2) {
+	case 'Passphrase':
+	    this.passphraseLabel.text = "Passphrase ";
+	    break;
+	case 'Password':
+	    this.passphraseLabel.text = "Password   ";
+	    break;
+	case 'WPS':
+	    this.passphraseLabel.text = "WPS PIN ";
+	    break;
+	};
+    },
+
+    set_previous_pass: function() {
+    /* If the Passphrase was already provided */
+	if(this.fields['PreviousPassphrase']) {
+	    let prevpass = this.fields.PreviousPassphrase.deep_unpack();
+	    let prevpass_type = prevpass.Type.deep_unpack();
+
+	    if (prevpass_type == this.type)
+		this._passphraseEntry.text = prevpass.Value.deep_unpack();
 	}
     },
 
