@@ -899,8 +899,10 @@ const ServiceItem = new Lang.Class({
     },
 
     CleanUp: function() {
-	this.proxy.disconnectSignal(this.prop_sig);
-	this.Item.destroy();
+	if (this.prop_sig)
+	    this.proxy.disconnectSignal(this.prop_sig);
+	if (this.Item)
+	    this.Item.destroy();
     }
 });
 
