@@ -618,8 +618,10 @@ const TechnologyItem = new Lang.Class({
     },
 
     CleanUp: function() {
-	this.proxy.disconnectSignal(this.tech_sig_prop);
-	this.sw.destroy();
+	if (this.tech_sig_prop)
+	    this.proxy.disconnectSignal(this.tech_sig_prop);
+	if (this.sw)
+	    this.sw.destroy();
     }
 });
 
