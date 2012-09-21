@@ -1209,8 +1209,10 @@ const ConnManager = new Lang.Class({
 	_agent.CleanUp();
 
 	/* Technology cleanup */
-	this._manager.disconnectSignal(this.manager_sig_techrem);
-	this._manager.disconnectSignal(this.manager_sig_techadd);
+	if (this.manager_sig_techrem)
+	    this._manager.disconnectSignal(this.manager_sig_techrem);
+	if (this.manager_sig_techadd)
+	    this._manager.disconnectSignal(this.manager_sig_techadd);
 
 	for each (let path in Object.keys(this.technologies)) {
 	    this.technologies[path].technology.CleanUp();
@@ -1231,7 +1233,8 @@ const ConnManager = new Lang.Class({
 	delete this.services;
 
 	/* Manager cleanup */
-	this._manager.disconnectSignal(this.manager_sig_prop);
+	if (this.manager_sig_prop)
+	    this._manager.disconnectSignal(this.manager_sig_prop);
 
 	this.offline_switch.destroy();
 
