@@ -1029,15 +1029,14 @@ const ConnManager = new Lang.Class({
 	    _defaultpath = defpath;
 
 	    for each (let [path, properties] in serv_array) {
-		if (Object.getOwnPropertyDescriptor(this.services, path))
-		    continue;
-		this.services[path] = { service: new ServiceItem(path, properties)};
-		this.add_service(this.services[path].service);
+		if (!Object.getOwnPropertyDescriptor(this.services, path)) {
+		    this.services[path] = { service: new ServiceItem(path, properties)};
+		    this.add_service(this.services[path].service);
+		}
 	    };
+
 	    this.startListner();
 	}));
-
-
 
 	this.menu.connect('open-state-changed', Lang.bind(this, function(menu, open) {
 	    this._menuopen = open;
