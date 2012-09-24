@@ -182,17 +182,17 @@ const PassphraseDialog = new Lang.Class({
 
 	    /* Name Label */
             this.nameLabel = new St.Label(({ style_class: 'prompt-dialog-description', text: "" }));
-            this.nameBox.add(this.nameLabel);
+            this.nameBox.add(this.nameLabel, { y_fill: false, y_align: St.Align.START });
 
 	    switch(this.str1) {
 	    case 'Name':
 		this.nameLabel.text = "        Name ";
 		break;
 	    case 'Identity':
-		this.nameLabel.text = "    Identity ";
+		this.nameLabel.text = "Identity ";
 		break;
 	    case 'Username':
-		this.nameLabel.text = "    Username ";
+		this.nameLabel.text = "Username ";
 		break;
 	    };
 
@@ -200,7 +200,7 @@ const PassphraseDialog = new Lang.Class({
             this._nameEntry = new St.Entry({ style_class: 'prompt-dialog-password-entry', text: "",
 						 can_focus: true});
             ShellEntry.addContextMenu(this._nameEntry, { isPassword: false });
-            this.nameBox.add(this._nameEntry, {expand: true });
+            this.nameBox.add(this._nameEntry, {expand: true, y_align: St.Align.END });
 	}
 
 	if (this.fields['Passphrase'])
@@ -220,7 +220,7 @@ const PassphraseDialog = new Lang.Class({
 
 	    /* Passphrase Label */
             this.passphraseLabel = new St.Label(({ style_class: 'prompt-dialog-description', text: ""}));
-            this.passphraseBox.add(this.passphraseLabel);
+            this.passphraseBox.add(this.passphraseLabel,  { y_fill: false, y_align: St.Align.START });
 
 	    this.set_pass_label();
 
@@ -230,7 +230,7 @@ const PassphraseDialog = new Lang.Class({
 	    /* Passphrase Entry */
             this._passphraseEntry = new St.Entry({ style_class: 'prompt-dialog-password-entry', text: "", can_focus: true });
             ShellEntry.addContextMenu(this._passphraseEntry, { isPassword: true });
-            this.passphraseBox.add(this._passphraseEntry, {expand: true });
+            this.passphraseBox.add(this._passphraseEntry, {expand: true, y_align: St.Align.END });
 	    this._passphraseEntry.clutter_text.set_password_char('\u25cf');
 
 	    this.set_previous_pass();
@@ -400,10 +400,10 @@ const PassphraseDialog = new Lang.Class({
 	    this.passphraseLabel.text = "Passphrase ";
 	    break;
 	case 'Password':
-	    this.passphraseLabel.text = "Password   ";
+	    this.passphraseLabel.text = " Password ";
 	    break;
 	case 'WPS':
-	    this.passphraseLabel.text = "WPS PIN ";
+	    this.passphraseLabel.text = "    WPS PIN ";
 	    break;
 	};
     },
