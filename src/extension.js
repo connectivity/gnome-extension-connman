@@ -600,11 +600,16 @@ const TechnologyItem = new Lang.Class({
     _init: function(path, properties) {
 	this.proxy = new TechnologyProxy(Gio.DBus.system, BUS_NAME, path);
 
-	this.sw = new PopupMenu.PopupSwitchMenuItem(properties.Name.deep_unpack(), properties.Powered.deep_unpack());
+	this.name = properties.Name.deep_unpack();
+
+	this.sw = new PopupMenu.PopupSwitchMenuItem(null, properties.Powered.deep_unpack());
+	this.set_tethering(properties.Tethering.deep_unpack());
 
 	this.tech_sig_prop = this.proxy.connectSignal('PropertyChanged', Lang.bind(this, function(proxy, sender,[property, value]) {
 	    if (property == "Powered")
 		this.sw.setToggleState(value.deep_unpack());
+	    if (property == "Tethering")
+		this.set_tethering(value.deep_unpack());
 	}));
 
 	this.sw.connect('toggled',  Lang.bind(this, function(item, state) {
@@ -613,8 +618,18 @@ const TechnologyItem = new Lang.Class({
 	}));
     },
 
+    set_tethering: function(tethering) {
+	if (tethering)
+	    this.sw.label.text = this.name + ' - sharing';
+	else
+	    this.sw.label.text = this.name;
+    },
+
     UpdateProperties: function(properties) {
-	this.sw.setToggleState(properties.Powered.deep_unpack());
+	if (properties.Powered)
+	    this.sw.setToggleState(properties.Powered.deep_unpack());
+	if (properties.Tethering)
+	    this.set_tethering(properties.Tethering.deep_unpack());
     },
 
     CleanUp: function() {
