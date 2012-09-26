@@ -1040,15 +1040,17 @@ const ConnManager = new Lang.Class({
 	*/
 	    let serv_array = result[0];
 
-	    let [defpath, defprop] = serv_array[0];
-	    _defaultpath = defpath;
+	    if (serv_array.length != 0) {
+		let [defpath, defprop] = serv_array[0];
+		_defaultpath = defpath;
 
-	    for each (let [path, properties] in serv_array) {
-		if (!Object.getOwnPropertyDescriptor(this.services, path)) {
-		    this.services[path] = { service: new ServiceItem(path, properties)};
-		    this.add_service(this.services[path].service);
-		}
-	    };
+		for each (let [path, properties] in serv_array) {
+		    if (!Object.getOwnPropertyDescriptor(this.services, path)) {
+			this.services[path] = { service: new ServiceItem(path, properties)};
+			this.add_service(this.services[path].service);
+		    }
+		};
+	    }
 
 	    this.startListner();
 	}));
