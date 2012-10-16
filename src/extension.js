@@ -870,6 +870,10 @@ const ServiceItem = new Lang.Class({
     set_state: function(state) {
 	this.state = state;
 	this.set_state_label();
+
+	if (_defaultpath == this.path)
+	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
+
     },
 
     set_favorite: function(favorite) {
