@@ -1234,23 +1234,27 @@ const ConnManager = new Lang.Class({
 	if (this.manager_sig_techadd)
 	    this._manager.disconnectSignal(this.manager_sig_techadd);
 
-	for each (let path in Object.keys(this.technologies)) {
-	    this.technologies[path].technology.CleanUp();
-	    delete this.technologies[path];
-        }
+	if (this.technologies) {
+	    for each (let path in Object.keys(this.technologies)) {
+		this.technologies[path].technology.CleanUp();
+		delete this.technologies[path];
+            }
 
-	delete this.technologies;
+	    delete this.technologies;
+	}
 
 	/* Services cleanup */
 	if (this.manager_sig_services)
 	    this._manager.disconnectSignal(this.manager_sig_services);
 
-	for each (let path1 in Object.keys(this.services)) {
-	    this.services[path1].service.CleanUp();
-	    delete this.services[path1];
-        }
+	if (this.services) {
+	    for each (let path1 in Object.keys(this.services)) {
+		this.services[path1].service.CleanUp();
+		delete this.services[path1];
+            }
 
-	delete this.services;
+	    delete this.services;
+	}
 
 	/* Manager cleanup */
 	if (this.manager_sig_prop)
