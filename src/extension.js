@@ -1087,6 +1087,7 @@ const ConnManager = new Lang.Class({
 	    }
 
 	    this._manager.disconnectSignal(this.manager_sig_services);
+	    this.manager_sig_services = null;
 
 	    /* Reorder the entire menu, as the order might have changed */
 	    if (this._servicesubmenu) {
@@ -1237,14 +1238,22 @@ const ConnManager = new Lang.Class({
 	/* Cleanup all the technologies, services, Agent and unwatch. */
 
 	/*Agent Cleanup */
-	this._manager.UnregisterAgentRemote(AGENT_PATH);
-	_agent.CleanUp();
+	if (this._manager) {
+	    this._manager.UnregisterAgentRemote(AGENT_PATH);
+	    _agent.CleanUp();
+	}
 
 	/* Technology cleanup */
-	if (this.manager_sig_techrem)
+	if (this.manager_sig_techrem && this._manager) {
 	    this._manager.disconnectSignal(this.manager_sig_techrem);
-	if (this.manager_sig_techadd)
+	    this.manager_sig_techrem = null;
+	}
+
+	if (this.manager_sig_techadd && this._manager) {
 	    this._manager.disconnectSignal(this.manager_sig_techadd);
+	    this.manager_sig_techadd = null;
+	}
+
 
 	if (this.technologies) {
 	    for each (let path in Object.keys(this.technologies)) {
@@ -1256,8 +1265,11 @@ const ConnManager = new Lang.Class({
 	}
 
 	/* Services cleanup */
-	if (this.manager_sig_services)
+	if (this.manager_sig_services && this._manager) {
 	    this._manager.disconnectSignal(this.manager_sig_services);
+	    this.manager_sig_services = null;
+	}
+
 
 	if (this.services) {
 	    for each (let path1 in Object.keys(this.services)) {
@@ -1269,12 +1281,18 @@ const ConnManager = new Lang.Class({
 	}
 
 	/* Manager cleanup */
-	if (this.manager_sig_prop)
+	if (this.manager_sig_prop && this._manager) {
 	    this._manager.disconnectSignal(this.manager_sig_prop);
+	    this.manager_sig_prop = null;
+	}
 
-	this.offline_switch.destroy();
+	if (this.offline_switch)
+	    this.offline_switch.destroy();
 
-	delete this._manager;
+	if(this._manager) {
+	    delete this._manager;
+	    this._manager = null;
+	}
 
 	/* Menus cleanup */
 	if (this.seperator1)
