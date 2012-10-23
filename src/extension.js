@@ -452,11 +452,18 @@ const ErrorDialog = new Lang.Class({
 
 	    this.addButton('retry', _("Retry"));
 	    this.connect('action-invoked', Lang.bind(this, function(self, action) {
-		if (action == 'retry')
+		if (action == 'retry') {
 		    this.invocation.return_dbus_error('net.connman.Agent.Error.Retry', 'retry this service');
-		this.destroy();
+		    this.destroy();
+		}
             }));
-	}
+	} else
+	    this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
+    },
+
+    CleanUp: function() {
+	this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
+	this.destroy();
     }
 });
 /* UI ERROR DIALOG SECTION ENDS */
@@ -498,7 +505,7 @@ const Agent = new Lang.Class({
 	let ssid = _extension.services[service].service.get_name();
 
 	if (this.source == null) {
-	    this.source = new MessageTray.SystemNotificationSource();
+	    this.source = new Source();
 	    Main.messageTray.add(this.source);
 	}
 
@@ -516,7 +523,12 @@ const Agent = new Lang.Class({
 	this.dialog = new PassphraseDialog(ssid, fields, invocation);
     },
 
-    Cancel: function() {
+    CancelAsync: function(params, invocation) {
+	if (this.err_dialog)
+	    this.err_dialog.CleanUp();
+
+	if (this.dialog)
+	    this.dialog.CleanUp();
     },
 
     CleanUp: function() {
@@ -1285,6 +1297,23 @@ const ConnManager = new Lang.Class({
 
     },
 })
+
+const Source = new Lang.Class({
+    Name: 'NetworkSource',
+    Extends: MessageTray.Source,
+
+    _init: function() {
+        this.parent(_("Network"));
+
+        this._setSummaryIcon(this.createNotificationIcon());
+    },
+
+    createNotificationIcon: function() {
+        return new St.Icon({ icon_name: 'network-error',
+                             icon_type: St.IconType.SYMBOLIC,
+                             icon_size: this.ICON_SIZE });
+    }
+});
 
 function init() {
     //Nothing to do here.
