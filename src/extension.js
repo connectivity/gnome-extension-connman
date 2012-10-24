@@ -440,10 +440,11 @@ const ErrorDialog = new Lang.Class({
 
         this.setResident(true);
 	this.invocation = invocation;
+	this.retry = false;
 
 	this.connect('destroy', Lang.bind(this, function () {
-	    this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
-	    this.destroy();
+	    if (this.retry == false)
+		this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
 	}));
 
 	/* Add all other errors */
@@ -451,18 +452,26 @@ const ErrorDialog = new Lang.Class({
 	    this.addBody(_("Invalid Passphrase for %s. Would you like to Retry?").format(ssid));
 
 	    this.addButton('retry', _("Retry"));
+	    this.addButton('cancel', _("Cancel"));
+
 	    this.connect('action-invoked', Lang.bind(this, function(self, action) {
 		if (action == 'retry') {
+		    this.retry = true;
 		    this.invocation.return_dbus_error('net.connman.Agent.Error.Retry', 'retry this service');
-		    this.destroy();
 		}
+
+		if (action == 'cancel') {
+		    this.retry = false;
+		    this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
+		}
+
+		this.destroy();
             }));
 	} else
 	    this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
     },
 
     CleanUp: function() {
-	this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
 	this.destroy();
     }
 });
@@ -506,6 +515,11 @@ const Agent = new Lang.Class({
 
 	if (this.source == null) {
 	    this.source = new Source();
+
+	    this.source.connect('destroy', Lang.bind(this, function() {
+		this.source = null;
+            }));
+
 	    Main.messageTray.add(this.source);
 	}
 
