@@ -467,8 +467,15 @@ const ErrorDialog = new Lang.Class({
 
 		this.destroy();
             }));
-	} else
+	} else {
 	    this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
+	    this.addButton('close', _("Close"));
+
+	    this.connect('action-invoked', Lang.bind(this, function(self, action) {
+		this.retry = false;
+		this.destroy();
+            }));
+	}
     },
 
     CleanUp: function() {
