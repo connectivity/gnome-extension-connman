@@ -1,7 +1,8 @@
 {
 "uuid": "@uuid@",
-"name": "Gnome connman",
-"description": "Gnome-shell connman extension",
-"shell-version": [ "3.1.90", "3.1.91", "3.1.92", "3.2", "3.3" ],
+"name": "ConnMan Extension",
+"description": "Gnome-shell ConnMan extension",
+"shell-version": [ "3.4", "3.6" ],
+"url": "https://github.com/connectivity/gnome-extension-connman",
 "localedir": "@LOCALEDIR@"
 }
