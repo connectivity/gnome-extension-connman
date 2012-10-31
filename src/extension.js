@@ -521,7 +521,7 @@ const Agent = new Lang.Class({
 	let ssid = _extension.services[service].service.get_name();
 
 	if (this.source == null) {
-	    this.source = new Source();
+	    this.source = new MessageTray.Source(_("Network"), 'network-error');
 
 	    this.source.connect('destroy', Lang.bind(this, function() {
 		this.source = null;
@@ -1336,23 +1336,6 @@ const ConnManager = new Lang.Class({
 
     },
 })
-
-const Source = new Lang.Class({
-    Name: 'NetworkSource',
-    Extends: MessageTray.Source,
-
-    _init: function() {
-        this.parent(_("Network"));
-
-        this._setSummaryIcon(this.createNotificationIcon());
-    },
-
-    createNotificationIcon: function() {
-        return new St.Icon({ icon_name: 'network-error',
-                             icon_type: St.IconType.SYMBOLIC,
-                             icon_size: this.ICON_SIZE });
-    }
-});
 
 function init() {
     //Nothing to do here.
