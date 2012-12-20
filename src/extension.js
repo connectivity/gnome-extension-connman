@@ -468,6 +468,7 @@ const ErrorDialog = new Lang.Class({
 		this.destroy();
             }));
 	} else {
+	    this.addBody(_("Unable to connect to %s").format(ssid) + _(" Error: %s").format(error));
 	    this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
 	    this.addButton('close', _("Close"));
 
