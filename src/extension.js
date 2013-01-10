@@ -1195,9 +1195,10 @@ const ConnManager = new Lang.Class({
 		this.remove_service(path_rem);
 	    };
 
-	    let [defpath, defprop] = changed[0];
-	    _defaultpath = defpath;
-
+	    if (changed != null&& changed[0] != null) {
+		let [defpath, defprop] = changed[0];
+		_defaultpath = defpath;
+	    }
 	    let update = false;
 
 	    for each (let [path, properties] in changed) {
@@ -1245,7 +1246,6 @@ const ConnManager = new Lang.Class({
 	this._noconnman = new PopupMenu.PopupMenuSection();
 	let no_connmand = new PopupMenu.PopupMenuItem(_("Connman is not running"),
 			{ reactive: false, style_class: 'popup-inactive-menu-item' });
-
 	this._noconnman.addMenuItem(no_connmand);
 	this.menu.addMenuItem(this._noconnman);
     },
@@ -1329,11 +1329,11 @@ const ConnManager = new Lang.Class({
 	if (this._techmenu)
 	    this._techmenu.destroy();
 
+	if (this._servicesubmenu)
+	     this._servicesubmenu.destroy();
+
 	if (this._servicemenu)
 	    this._servicemenu.destroy();
-
-	if (this._servicesubmenu)
-	    this._servicesubmenu.destroy();
 
     },
 })
