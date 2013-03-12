@@ -61,7 +61,7 @@ function signalToIcon(value) {
         return 'ok';
     if (value > 5)
         return 'weak';
-    return 'none';
+    return 'excellent';
 }
 
 function getIcon(type, strength) {
@@ -1076,20 +1076,21 @@ const ConnManager = new Lang.Class({
 	/* result contains the exported Services.
 	 * services is a array: a(oa{sv}), each element consists of [path, Properties]
 	*/
-	    let serv_array = result[0];
+	    if (result != null) {
+		let serv_array = result[0];
 
-	    if (serv_array.length != 0) {
-		let [defpath, defprop] = serv_array[0];
-		_defaultpath = defpath;
+		if (serv_array.length != 0) {
+		    let [defpath, defprop] = serv_array[0];
+		    _defaultpath = defpath;
 
-		for each (let [path, properties] in serv_array) {
-		    if (!Object.getOwnPropertyDescriptor(this.services, path)) {
-			this.services[path] = { service: new ServiceItem(path, properties)};
-			this.add_service(this.services[path].service);
-		    }
-		};
+		    for each (let [path, properties] in serv_array) {
+			if (!Object.getOwnPropertyDescriptor(this.services, path)) {
+			    this.services[path] = { service: new ServiceItem(path, properties)};
+			    this.add_service(this.services[path].service);
+			}
+		    };
+		}
 	    }
-
 	    this.startListner();
 	}));
 
@@ -1120,13 +1121,16 @@ const ConnManager = new Lang.Class({
 	    this._servicemenu.removeAll();
 
 	    this._manager.GetServicesRemote(Lang.bind(this, function(result, excp) {
-		let serv_array = result[0];
+		if (result != null) {
+		    let serv_array = result[0];
 
-		for each (let [path, properties] in serv_array) {
-		    if (!Object.getOwnPropertyDescriptor(this.services, path))
-			this.services[path] = { service: new ServiceItem(path, properties)};
-		    this.add_service(this.services[path].service);
-		};
+		    for each (let [path, properties] in serv_array) {
+			if (!Object.getOwnPropertyDescriptor(this.services, path))
+			    this.services[path] = { service: new ServiceItem(path, properties)};
+			this.add_service(this.services[path].service);
+		    };
+		}
+
 		this.startListner();
 	    }));
 
@@ -1147,6 +1151,9 @@ const ConnManager = new Lang.Class({
 	/* result contains the exported Technologies.
 	 * technologies is a array: a(oa{sv}), each element consists of [path, Properties]
 	*/
+	if (result == null)
+	    return;
+
 	let update = false;
 	let tech_array = result[0];
 
@@ -1199,6 +1206,7 @@ const ConnManager = new Lang.Class({
 		let [defpath, defprop] = changed[0];
 		_defaultpath = defpath;
 	    }
+
 	    let update = false;
 
 	    for each (let [path, properties] in changed) {
@@ -1221,6 +1229,9 @@ const ConnManager = new Lang.Class({
     },
 
     get_services: function(result, excp) {
+	if (result == null)
+	    return;
+
 	let serv_array = result[0];
 
 	/* if old service then update the property if new service
