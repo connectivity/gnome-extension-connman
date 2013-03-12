@@ -110,9 +110,11 @@ function getstatusIcon(type, state, strength) {
     case "idle":
 	return 'network-offline-symbolic';
     case "failure":
+    default:
 	return 'network-error-symbolic';
     }
 }
+
 /* UI PASSPHRASE DIALOG SECTION */
 const PassphraseDialog = new Lang.Class({
     Name: 'PassphraseDialog',
@@ -1109,8 +1111,10 @@ const ConnManager = new Lang.Class({
 		return;
 	    }
 
-	    this._manager.disconnectSignal(this.manager_sig_services);
-	    this.manager_sig_services = null;
+	    if (this.manager_sig_services) {
+		this._manager.disconnectSignal(this.manager_sig_services);
+		this.manager_sig_services = null;
+	    }
 
 	    /* Reorder the entire menu, as the order might have changed */
 	    if (this._servicesubmenu) {
@@ -1363,11 +1367,10 @@ function enable() {
 function disable() {
     Gio.DBus.system.unwatch_name(_extension.watch);
     _extension.CleanUp();
-    _extension.destroy();
 
     _agent._dbusImpl.unexport(Gio.DBus.system, AGENT_PATH);
-    delete _agent;
 
     _extension = null;
+    _agent  = null;
     _defaultpath = null;
 }
