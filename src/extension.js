@@ -1370,7 +1370,7 @@ function disable() {
 
     _agent._dbusImpl.unexport(Gio.DBus.system, AGENT_PATH);
 
-    _extension = null;
+    _extension.destroy();
     _agent  = null;
     _defaultpath = null;
 }
