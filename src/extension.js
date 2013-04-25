@@ -26,7 +26,6 @@ const PopupMenu = imports.ui.popupMenu;
 const PanelMenu = imports.ui.panelMenu;
 const Gettext = imports.gettext;
 const Clutter = imports.gi.Clutter;
-const DBus = imports.dbus;
 const ModalDialog = imports.ui.modalDialog;
 const ShellEntry = imports.ui.shellEntry;
 const MessageTray = imports.ui.messageTray;
