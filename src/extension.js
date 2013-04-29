@@ -1362,6 +1362,11 @@ function enable() {
     _agent = new Agent();
 
     _extension = new ConnManager();
+
+    /* We don't need the icon/menu in initial setup mode */
+    if (Main.sessionMode.currentMode == 'initial-setup')
+      return;
+
     Main.panel.addToStatusArea('ConnMan', _extension);
 }
 
