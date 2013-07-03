@@ -15,42 +15,53 @@
   * You should have received a copy of the GNU General Public License
   * along with this program.  If not, see <http://www.gnu.org/licenses/>.
   */
-
 const St = imports.gi.St;
-const Mainloop = imports.mainloop;
 const Main = imports.ui.main;
 const Lang = imports.lang;
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const PopupMenu = imports.ui.popupMenu;
 const PanelMenu = imports.ui.panelMenu;
-const Gettext = imports.gettext;
+const Gettext = imports.gettext.domain('gnome-extension-connman');
 const Clutter = imports.gi.Clutter;
-const DBus = imports.dbus;
-const ModalDialog = imports.ui.modalDialog;
-const ShellEntry = imports.ui.shellEntry;
-const MessageTray = imports.ui.messageTray;
-const CheckBox = imports.ui.checkBox;
 const _ = Gettext.gettext;
+const Util = imports.misc.util;
+const ExtensionUtils = imports.misc.extensionUtils;
+const Ext = ExtensionUtils.getCurrentExtension();
+const ConnmanAgent = Ext.imports.connmanAgent;
+
+const BLUETOOTH_APPLET = false;//imports.ui.status.bluetooth.Indicator;
 
 const MAX_SERVICES = 7;
-const AGENT_PATH = '/net/connman/agent';
-const DIALOG_TIMEOUT = 120*1000;
+
 const BUS_NAME = 'net.connman';
 
-let _extension = null;
-let _defaultpath = null;
-let _agent = null;
+let _defaultpath;
 
-const description_hidden_psk	= _("Passwords or encryption keys are required to access the Hidden wireless network");
-const description_hidden_open	= _("Network Name is required to access the Hidden wireless network");
-const description_wpa		= _("Passwords or encryption keys are required to access the wireless network ");
-
-const security_wpa	= _("This access point is using WPA personal security.\nA passphrase of min 8 characters is required to access the network.");
-const security_wep	= _("This access point is using WEP security.\nA key of 10, 26 or 58 characters is required to access the network.");
-const security_enter	= _("This access point is using WPA Enterprise security.\nA passphrase is required to access the network.");
-const security_wps	= _("This access point is using WPS security.\nEither push the push-button on the AP or enter a 8 digit PIN to access the network.");
-const security_wispr	= _("This hotspot is using WISPr.\nA password is required to access the network.");
+function get_technology_name(name, tethered) {
+    if (name == 'Wired') {
+	if (tethered)
+	    return _("Wired - Sharing");
+	else
+	    return _("Wired");
+    } else if (name == 'WiFi') {
+	if (tethered)
+	    return _("WiFi - Sharing");
+	else
+	    return _("WiFi");
+    } else if (name == 'Bluetooth') {
+	if (tethered)
+	    return _("Bluetooth - Sharing");
+	else
+	    return _("Bluetooth");
+    } else if (name == 'Cellular') {
+	if (tethered)
+	    return _("Cellular - Sharing");
+	else
+	    return _("Cellular");
+    } else
+	return name;
+}
 
 function signalToIcon(value) {
     if (value > 80)
@@ -115,457 +126,7 @@ function getstatusIcon(type, state, strength) {
     }
 }
 
-/* UI PASSPHRASE DIALOG SECTION */
-const PassphraseDialog = new Lang.Class({
-    Name: 'PassphraseDialog',
-    Extends: ModalDialog.ModalDialog,
-    _init: function(ssid, fields, invocation) {
-	this.parent({ styleClass: 'prompt-dialog' });
-	this.invocation = invocation;
-	this.fields = fields;
-	this.usingWPS = false;
-	/* Create the main container of the dialog */
-	let mainContentBox = new St.BoxLayout({ style_class: 'prompt-dialog-main-layout', vertical: false });
-        this.contentLayout.add(mainContentBox,
-                               { x_fill: true,
-                                 y_fill: true });
-
-	/* Add the dialog password icon */
-        let icon = new St.Icon({ icon_name: 'dialog-password-symbolic' });
-        mainContentBox.add(icon,
-                           { x_fill:  true,
-                             y_fill:  false,
-                             x_align: St.Align.END,
-                             y_align: St.Align.START });
-
-	/* Add a Message to the container */
-        this.messageBox = new St.BoxLayout({ style_class: 'prompt-dialog-message-layout',
-                                            vertical: true });
-        mainContentBox.add(this.messageBox,
-                           { y_align: St.Align.START });
-
-	/* Add a Header Label in the Message */
-        let subjectLabel = new St.Label({ style_class: 'prompt-dialog-headline',
-					  text: "Authentication required by wireless network"});
-        this.messageBox.add(subjectLabel,
-                       { y_fill:  false,
-                         y_align: St.Align.START });
-
-	/* Add a Description Label in the Message */
-        this.descriptionLabel = new St.Label({ style_class: 'prompt-dialog-description', text: "" });
-        this.messageBox.add(this.descriptionLabel,{ y_fill: true, y_align: St.Align.START, expand: true });
-
-	/* Set the description lable according to the ssid name */
-	if (ssid == 'Hidden Network') {
-	    if (this.fields['Passphrase'])
-		this.descriptionLabel.text = description_hidden_psk;
-	    else
-		this.descriptionLabel.text = description_hidden_open;
-	} else
-	    this.descriptionLabel.text = description_wpa + ssid;
-
-        this.descriptionLabel.style = 'height: 3em';
-        this.descriptionLabel.clutter_text.line_wrap = true;
-
-	if (this.fields['Name'])
-	    this.str1 = 'Name';
-	else if (this.fields['Identity'])
-	    this.str1 = 'Identity';
-	else if (this.fields['Username'])
-	    this.str1 = 'Username';
-	else
-	    this.str1 = null;
-
-	/* If Name/Username/Identity field is requested */
-	if (this.str1) {
-	    /* Create a box container */
-            this.nameBox = new St.BoxLayout({ vertical: false });
-            this.messageBox.add(this.nameBox);
-
-	    /* Name Label */
-            this.nameLabel = new St.Label(({ style_class: 'prompt-dialog-description', text: "" }));
-            this.nameBox.add(this.nameLabel, { y_fill: false, y_align: St.Align.START });
-
-	    switch(this.str1) {
-	    case 'Name':
-		this.nameLabel.text = "        Name ";
-		break;
-	    case 'Identity':
-		this.nameLabel.text = "Identity ";
-		break;
-	    case 'Username':
-		this.nameLabel.text = "Username ";
-		break;
-	    };
-
-	    /* Name Entry */
-            this._nameEntry = new St.Entry({ style_class: 'prompt-dialog-password-entry', text: "",
-						 can_focus: true});
-            ShellEntry.addContextMenu(this._nameEntry, { isPassword: false });
-            this.nameBox.add(this._nameEntry, {expand: true, y_align: St.Align.END });
-	}
-
-	if (this.fields['Passphrase'])
-	    this.str2 = 'Passphrase';
-	else if (this.fields['Password'])
-	    this.str2 = 'Password';
-	else
-	    this.str2 = null;
-
-	this.type = null;
-	this.wps = null;
-
-	if (this.str2) {
-	    /* Create a box container */
-            this.passphraseBox = new St.BoxLayout({ vertical: false });
-	    this.messageBox.add(this.passphraseBox);
-
-	    /* Passphrase Label */
-            this.passphraseLabel = new St.Label(({ style_class: 'prompt-dialog-description', text: ""}));
-            this.passphraseBox.add(this.passphraseLabel,  { y_fill: false, y_align: St.Align.START });
-
-	    this.set_pass_label();
-
-	    let args = this.fields[this.str2].deep_unpack();
-	    this.type = args.Type.deep_unpack();
-
-	    /* Passphrase Entry */
-            this._passphraseEntry = new St.Entry({ style_class: 'prompt-dialog-password-entry', text: "", can_focus: true });
-            ShellEntry.addContextMenu(this._passphraseEntry, { isPassword: true });
-            this.passphraseBox.add(this._passphraseEntry, {expand: true, y_align: St.Align.END });
-	    this._passphraseEntry.clutter_text.set_password_char('\u25cf');
-
-	    this.set_previous_pass();
-
-	    this._passphraseEntry.clutter_text.connect('activate', Lang.bind(this, this.onOk));
-
-	    /* Add a Security Tip */
-	    this.securityLabel = new St.Label({ style_class: 'prompt-dialog-description', text: "" });
-	    this.messageBox.add(this.securityLabel, { y_fill: true, y_align: St.Align.START, expand: true });
-
-	    this.set_security_label();
-
-	    this.securityLabel.style = 'height: 5em';
-	    this.securityLabel.clutter_text.line_wrap = true;
-
-	    this._passphraseEntry.clutter_text.connect('text-changed', Lang.bind(this, this.UpdateOK));
-	}
-
-	if (this.fields['WPS']) {
-	    this.wps = new CheckBox.CheckBox();
-
-	    let label = this.wps.getLabelActor();
-	    label.text = _('Use WPS');
-
-	    this.wps.actor.checked = false;
-	    this.wps.actor.connect('clicked', Lang.bind(this, this.checkWPS));
-	    this.messageBox.add(this.wps.actor);
-	}
-
-        this.okButton = { label:  _("Connect"),
-                           action: Lang.bind(this, this.onOk),
-                           key:    Clutter.KEY_Return,
-                         };
-
-        this.setButtons([{ label: _("Cancel"),
-                           action: Lang.bind(this, this.onCancel),
-                           key:    Clutter.KEY_Escape,
-                         },
-                         this.okButton]);
-
-	this.open();
-
-	if (this.str1 != null)
-	    global.stage.set_key_focus(this._nameEntry);
-	else
-	    global.stage.set_key_focus(this._passphraseEntry);
-
-	if (this.type)
-	    this.UpdateOK();
-
-	this.timeoutid = Mainloop.timeout_add(DIALOG_TIMEOUT, Lang.bind(this, function() {
-	    this.onCancel();
-	    return false;
-	}));
-    },
-
-    onOk: function() {
-	let retval = {};
-
-	this.close();
-	Mainloop.source_remove(this.timeoutid);
-
-	if (this.str1)
-	    retval[this.str1] = GLib.Variant.new('s', this._nameEntry.get_text());
-
-	if (this.str2)
-	    retval[this.str2] = GLib.Variant.new('s', this._passphraseEntry.get_text());
-
-	this.invocation.return_value(GLib.Variant.new('(a{sv})', [retval]));
-	this.destroy();
-    },
-
-    onCancel: function() {
-	this.close();
-
-	Mainloop.source_remove(this.timeoutid);
-
-	this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
-	this.destroy();
-    },
-
-    UpdateOK: function() {
-	let pass = this._passphraseEntry.get_text();
-	let enable = false;
-
-	switch (this.type) {
-	case 'psk':
-	    if (pass.length > 7 && pass.length < 65)
-		enable = true;
-	    break;
-	case 'wep':
-	    if (pass.length == 10 || pass.length == 26 || pass.length == 58)
-		enable = true;
-	    break;
-	case 'response':
-	case 'passphrase':
-	    if (pass.length > 0)
-		enable = true;
-	    break;
-	case 'wpspin':
-	    enable = true;
-	    break;
-	default:
-	    enable = false;
-	};
-
-	if (enable) {
-	    this.okButton.button.reactive = true;
-	    this.okButton.button.can_focus = true;
-	    this.okButton.button.remove_style_pseudo_class('disabled');
-	} else {
-	    this.okButton.button.reactive = false;
-	    this.okButton.button.can_focus = false;
-	    this.okButton.button.add_style_pseudo_class('disabled');
-	}
-    },
-
-    checkWPS: function() {
-	let label = this.wps.getLabelActor();
-
-	if (this.wps.actor.checked) {
-	    label.text = _('Using WPS');
-
-	    this.old_str2 = this.str2;
-	    this.old_type = this.type;
-
-	    this.str2 = 'WPS';
-	    this.type = 'wpspin';
-	} else {
-	    label.text = _('Use WPS');
-	    this.str2 = this.old_str2;
-	    this.type = this.old_type;
-	}
-
-	this.set_pass_label();
-	this.set_security_label();
-	this.set_previous_pass();
-	this.UpdateOK();
-    },
-
-    set_security_label: function() {
-	switch(this.type) {
-	case 'psk':
-	    this.securityLabel.text = security_wpa;
-	    break;
-	case 'wep':
-	    this.securityLabel.text = security_wep;
-	    break;
-	case 'response':
-	    this.securityLabel.text = security_enter;
-	    break;
-	case 'passphrase':
-	    if (this.str2 == 'Passphrase')
-		this.securityLabel.text = security_enter;
-	    else
-		this.securityLabel.text = security_wispr;
-	    break;
-	case 'wpspin':
-	    this.securityLabel.text = security_wps;
-	    break;
-	};
-    },
-
-    set_pass_label: function() {
-	switch(this.str2) {
-	case 'Passphrase':
-	    this.passphraseLabel.text = "Passphrase ";
-	    break;
-	case 'Password':
-	    this.passphraseLabel.text = " Password ";
-	    break;
-	case 'WPS':
-	    this.passphraseLabel.text = "    WPS PIN ";
-	    break;
-	};
-    },
-
-    set_previous_pass: function() {
-    /* If the Passphrase was already provided */
-	if(this.fields['PreviousPassphrase']) {
-	    let prevpass = this.fields.PreviousPassphrase.deep_unpack();
-	    let prevpass_type = prevpass.Type.deep_unpack();
-
-	    if (prevpass_type == this.type)
-		this._passphraseEntry.text = prevpass.Value.deep_unpack();
-	}
-    },
-
-    CleanUp: function() {
-	this.close();
-	Mainloop.source_remove(this.timeoutid);
-	this.destroy();
-    }
-});
-/* UI PASSPHRASE DIALOG SECTION ENDS*/
-
-/* UI ERROR DIALOG SECTION STARTS */
-const ErrorDialog = new Lang.Class({
-    Name: 'ErrorDialog',
-    Extends: MessageTray.Notification,
-
-    _init: function(source, ssid, error, invocation) {
-	this.parent(source,
-                    _("Network"),
-                    _("Connection error for %s").format(ssid),
-                    { customContent: true });
-
-        this.setResident(true);
-	this.invocation = invocation;
-	this.retry = false;
-
-	this.connect('destroy', Lang.bind(this, function () {
-	    if (this.retry == false)
-		this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
-	}));
-
-	/* Add all other errors */
-	if (error == 'invalid-key') {
-	    this.addBody(_("Invalid Passphrase for %s. Would you like to Retry?").format(ssid));
-
-	    this.addButton('retry', _("Retry"));
-	    this.addButton('cancel', _("Cancel"));
-
-	    this.connect('action-invoked', Lang.bind(this, function(self, action) {
-		if (action == 'retry') {
-		    this.retry = true;
-		    this.invocation.return_dbus_error('net.connman.Agent.Error.Retry', 'retry this service');
-		}
-
-		if (action == 'cancel') {
-		    this.retry = false;
-		    this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
-		}
-
-		this.destroy();
-            }));
-	} else {
-	    this.addBody(_("Unable to connect to %s").format(ssid) + _(" Error: %s").format(error));
-	    this.invocation.return_dbus_error('net.connman.Agent.Error.Canceled', 'Cancel the connect');
-	    this.addButton('close', _("Close"));
-
-	    this.connect('action-invoked', Lang.bind(this, function(self, action) {
-		this.retry = false;
-		this.destroy();
-            }));
-	}
-    },
-
-    CleanUp: function() {
-	this.destroy();
-    }
-});
-/* UI ERROR DIALOG SECTION ENDS */
-
-/* net.connman.Agent Interface */
-const AgentInterface = <interface name="net.connman.Agent">
-<method name="Release">
-</method>
-<method name="ReportError">
-    <arg name="service" type="o" direction="in"/>
-    <arg name="error" type="s" direction="in"/>
-</method>
-<method name="RequestBrowser">
-    <arg name="service" type="o" direction="in"/>
-    <arg name="url" type="s" direction="in"/>
-</method>
-<method name="RequestInput">
-    <arg name="service" type="o" direction="in"/>
-    <arg name="fields" type="a{sv}" direction="in"/>
-    <arg name="values" type="a{sv}" direction="out"/>
-</method>
-<method name="Cancel">
-</method>
-</interface>;
-
-const Agent = new Lang.Class({
-    Name: 'Agent',
-    _init: function() {
-	this._dbusImpl = Gio.DBusExportedObject.wrapJSObject(AgentInterface, this);
-	this._dbusImpl.export(Gio.DBus.system, AGENT_PATH);
-	this.source = null;
-    },
-
-    Release: function() {
-    },
-
-    ReportErrorAsync: function(params, invocation) {
-	let [service, error] = params;
-	let ssid = _extension.services[service].service.get_name();
-
-	if (this.source == null) {
-	    this.source = new MessageTray.Source(_("Network"), 'network-error');
-
-	    this.source.connect('destroy', Lang.bind(this, function() {
-		this.source = null;
-            }));
-
-	    Main.messageTray.add(this.source);
-	}
-
-	this.err_dialog = new ErrorDialog(this.source, ssid, error, invocation);
-	this.source.notify(this.err_dialog);
-    },
-
-    RequestBrowser: function(service, url) {
-    },
-
-    RequestInputAsync: function(params, invocation) {
-	let [service, fields] = params;
-	let ssid = _extension.services[service].service.get_name();
-
-	this.dialog = new PassphraseDialog(ssid, fields, invocation);
-    },
-
-    CancelAsync: function(params, invocation) {
-	if (this.err_dialog)
-	    this.err_dialog.CleanUp();
-
-	if (this.dialog)
-	    this.dialog.CleanUp();
-    },
-
-    CleanUp: function() {
-	if (this.dialog)
-	    this.dialog.CleanUp();
-
-	if (this.err_dialog)
-	    this.err_dialog.destroy();
-
-	if (this.source)
-	    this.source.destroy();
-    }
-});
+/*-----DBUS INTERFACE DEFINITIONS START-----*/
 
 /* net.connman.Manager Interface */
 const ManagerInterface = <interface name="net.connman.Manager">
@@ -630,51 +191,9 @@ const TechnologyInterface = <interface name="net.connman.Technology">
 
 const TechnologyProxy = Gio.DBusProxy.makeProxyWrapper(TechnologyInterface);
 
-const TechnologyItem = new Lang.Class({
-    Name: 'Technology.TechnologyItem',
-
-    _init: function(path, properties) {
-	this.proxy = new TechnologyProxy(Gio.DBus.system, BUS_NAME, path);
-
-	this.name = properties.Name.deep_unpack();
-
-	this.sw = new PopupMenu.PopupSwitchMenuItem(null, properties.Powered.deep_unpack());
-	this.set_tethering(properties.Tethering.deep_unpack());
-
-	this.tech_sig_prop = this.proxy.connectSignal('PropertyChanged', Lang.bind(this, function(proxy, sender,[property, value]) {
-	    if (property == "Powered")
-		this.sw.setToggleState(value.deep_unpack());
-	    if (property == "Tethering")
-		this.set_tethering(value.deep_unpack());
-	}));
-
-	this.sw.connect('toggled',  Lang.bind(this, function(item, state) {
-	    let val = GLib.Variant.new('b', state);
-	    this.proxy.SetPropertyRemote('Powered', val);
-	}));
-    },
-
-    set_tethering: function(tethering) {
-	if (tethering)
-	    this.sw.label.text = this.name + ' - sharing';
-	else
-	    this.sw.label.text = this.name;
-    },
-
-    UpdateProperties: function(properties) {
-	if (properties.Powered)
-	    this.sw.setToggleState(properties.Powered.deep_unpack());
-	if (properties.Tethering)
-	    this.set_tethering(properties.Tethering.deep_unpack());
-    },
-
-    CleanUp: function() {
-	if (this.tech_sig_prop)
-	    this.proxy.disconnectSignal(this.tech_sig_prop);
-	if (this.sw)
-	    this.sw.destroy();
-    }
-});
+function Technology(path) {
+    return new TechnologyProxy(Gio.DBus.system, BUS_NAME, path);
+}
 
 /* net.connman.Service Interface */
 const ServiceInterface = <interface name="net.connman.Service">
@@ -692,14 +211,23 @@ const ServiceInterface = <interface name="net.connman.Service">
 </signal>
 </interface>;
 
-const ServiceProxy = Gio.DBusProxy.makeProxyWrapper(ServiceInterface);
+const Service_Proxy = Gio.DBusProxy.makeProxyWrapper(ServiceInterface);
+
+function ServiceProxy(path) {
+    return new Service_Proxy(Gio.DBus.system, BUS_NAME, path);
+}
+
+/*-----DBUS INTERFACE DEFINITIONS END-----*/
 
 const ServiceItem = new Lang.Class({
     Name: 'Services.ServiceItem',
 
     _init: function(path, properties) {
 	this.path = path;
-	this.proxy = new ServiceProxy(Gio.DBus.system, BUS_NAME, path);
+	this.Item = null;
+
+	this.proxy = new ServiceProxy(path);
+
 	this.marked_inactive = false;
 
 	/* For Ethernet and Hidden Wifi networks the Name property is absent. */
@@ -714,12 +242,12 @@ const ServiceItem = new Lang.Class({
 	    this.type = null;
 
 	if (this.name == null && this.type == 'cellular')
-	    this.name = 'Cellular';
+	    this.name = _("Cellular");
 	if (this.name == null && this.type == 'ethernet')
-	    this.name = 'Wired Connection';
+	    this.name = _("Wired Connection");
 	if (this.name == null && this.type == 'wifi') {
 	    this.hidden = true;
-	    this.name = 'Connect to hidden...';
+	    this.name = _("Connect to hidden...");
 	}
 
 	if (properties.Favorite)
@@ -748,9 +276,9 @@ const ServiceItem = new Lang.Class({
 	    this.error = null;
 
 	if (_defaultpath == this.path)
-	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
+	    NetworkMenu.setIcon(getstatusIcon(this.type, this.state, this.strength));
 
-	this.prop_sig = this.proxy.connectSignal('PropertyChanged', Lang.bind(this, function(proxy, sender,[property, value]) {
+	this.proxy.connectSignal('PropertyChanged', Lang.bind(this, function(proxy, sender,[property, value]) {
 		if (property == 'Strength')
 		    this.set_strength(value.deep_unpack());
 		if (property == 'State')
@@ -772,8 +300,9 @@ const ServiceItem = new Lang.Class({
 	this.Item.addActor(this.label);
 	this.set_label();
 
-	this.state_label = new St.Label();
+	this.state_label = new St.Label({text:""});
 	this.Item.addActor(this.state_label);
+
 	this.set_state_label();
 
 	this._icons = new St.BoxLayout({ style_class: 'nm-menu-item-icons' });
@@ -821,13 +350,16 @@ const ServiceItem = new Lang.Class({
 	if (this.label == null)
 	    return;
 
-	if (this.favorite == true)
-	    this.label.clutter_text.set_markup('<b>' + this.name + '</b>');
-	else
-	    this.label.clutter_text.set_markup(this.name);
-
-	if (this.hidden == true)
+	if (this.hidden == true) {
 	    this.label.clutter_text.set_markup('<i>' + this.name + '</i>');
+	    return;
+	}
+
+	if (this.favorite == true) {
+	    let esc_title = GLib.markup_escape_text(this.name, -1);
+	    this.label.clutter_text.set_markup('<b>' + esc_title + '</b>');
+	} else
+	    this.label.set_text(this.name);
     },
 
     set_state_label: function() {
@@ -835,29 +367,36 @@ const ServiceItem = new Lang.Class({
 	if (this.Item == null)
 	    return;
 
+	let markup;
+
 	switch (this.state) {
 	case "online":
-	    this.state_label.clutter_text.set_markup('<i>' + 'Online' + '</i>');
+	    markup = '<i>' + _("Online") + '</i>';
+	    this.state_label.clutter_text.set_markup(markup);
 	    this.Item.setShowDot(true);
 	    this.connected = true;
 	    break;
 	case "ready":
-	    this.state_label.clutter_text.set_markup('<i>' + 'Ready' + '</i>');
+	    markup = '<i>' + _("Connected") + '</i>';
+	    this.state_label.clutter_text.set_markup(markup);
 	    this.Item.setShowDot(true);
 	    this.connected = true;
 	    break;
 	case "configuration":
-	    this.state_label.clutter_text.set_markup('<i>' + 'Associating...' + '</i>');
+	    markup = '<i>' + _("Configuration...") + '</i>';
+	    this.state_label.clutter_text.set_markup(markup);
 	    this.Item.setShowDot(false);
 	    this.connected = false;
 	    break;
 	case "association":
-	    this.state_label.clutter_text.set_markup('<i>' + 'Associating...' + '</i>');
+	    markup = '<i>' + _("Associating...") + '</i>';
+	    this.state_label.clutter_text.set_markup(markup);
 	    this.Item.setShowDot(false);
 	    this.connected = false;
 	    break;
 	case "disconnect":
-	    this.state_label.clutter_text.set_markup('<i>' + 'Disconnecting...' + '</i>');
+	    markup = '<i>' + _("Disconnecting...") + '</i>';
+	    this.state_label.clutter_text.set_markup(markup);
 	    this.Item.setShowDot(false);
 	    this.connected = false;
 	    break;
@@ -868,9 +407,11 @@ const ServiceItem = new Lang.Class({
 	    break;
 	case "failure":
 	    if (this.error != null)
-		this.state_label.clutter_text.set_markup('<i>' + this.error + '</i>');
+		markup= '<i>' + this.error + '</i>';
 	    else
-		this.state_label.clutter_text.set_markup('<i>' + 'Failure' + '</i>');
+		markup = '<i>' + _("Failure") + '</i>';
+
+	    this.state_label.clutter_text.set_markup(markup);
 	    this.Item.setShowDot(false);
 	    this.connected = false;
 	    break;
@@ -880,8 +421,8 @@ const ServiceItem = new Lang.Class({
 
 	this.state_label.style = 'font-size: 70%';
 
-	if (_defaultpath == this.path) {
-	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
+	if ((_defaultpath == this.path) && NetworkMenu) {
+	    NetworkMenu.setIcon(getstatusIcon(this.type, this.state, this.strength));
 	}
     },
 
@@ -893,8 +434,8 @@ const ServiceItem = new Lang.Class({
 
 	this._signalIcon.icon_name = getIcon(this.type, strength);
 
-	if (_defaultpath == this.path) {
-	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
+	if ((_defaultpath == this.path) && NetworkMenu) {
+	    NetworkMenu.setIcon(getstatusIcon(this.type, this.state, this.strength));
 	}
     },
 
@@ -907,8 +448,8 @@ const ServiceItem = new Lang.Class({
 	this.state = state;
 	this.set_state_label();
 
-	if (_defaultpath == this.path)
-	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
+	if ((_defaultpath == this.path) && NetworkMenu)
+	    NetworkMenu.setIcon(getstatusIcon(this.type, this.state, this.strength));
 
     },
 
@@ -946,62 +487,91 @@ const ServiceItem = new Lang.Class({
 	if (properties.Error && this.error != properties.Error.deep_unpack())
 	    this.set_error(properties.Error.deep_unpack());
 
-	if (_defaultpath == this.path)
-	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
+	if ((_defaultpath == this.path) && NetworkMenu)
+	    NetworkMenu.setIcon(getstatusIcon(this.type, this.state, this.strength));
     },
 
     check_default: function() {
-	if (_defaultpath == this.path)
-	    _extension.setIcon(getstatusIcon(this.type, this.state, this.strength));
+	if ((_defaultpath == this.path) && NetworkMenu)
+	    NetworkMenu.setIcon(getstatusIcon(this.type, this.state, this.strength));
     },
 
-    CleanUp: function() {
-	if (this.prop_sig)
-	    this.proxy.disconnectSignal(this.prop_sig);
+    Destroy: function() {
 	if (this.Item)
 	    this.Item.destroy();
     }
 });
 
-const ConnManager = new Lang.Class({
-    Name: 'ConnManager',
+const TechnologyItem = new Lang.Class({
+    Name: 'Technology.TechnologyItem',
+
+    _init: function(path, properties) {
+	this.proxy = new Technology(path);
+
+	this.name = properties.Name.deep_unpack();
+	this.powered = properties.Powered.deep_unpack();
+
+	this.sw = new PopupMenu.PopupSwitchMenuItem("",
+						    this.powered,
+						    {style_class:'popup-subtitle-menu-item'});
+
+	this.sw.label.text = get_technology_name(this.name, properties.Tethering.deep_unpack());
+
+	this.proxy.connectSignal('PropertyChanged', Lang.bind(this, this.TechnologyPropertyChanged));
+
+	this.sw.connect('toggled',  Lang.bind(this, function(item, state) {
+	    let val = GLib.Variant.new('b', state);
+	    this.proxy.SetPropertyRemote('Powered', val);
+	}));
+    },
+
+    TechnologyPropertyChanged: function(proxy, sender, [property, value])
+    {
+	if (property == "Powered") {
+	    this.powered = value.deep_unpack();
+
+	    if (this.sw)
+		this.sw.setToggleState(value.deep_unpack());
+	}
+
+	if (property == "Tethering" && this.sw)
+	    this.sw.label.text = get_technology_name(this.name, value.deep_unpack());
+    },
+
+    UpdateProperties: function(properties) {
+	if (properties.Powered && this.sw)
+	    this.sw.setToggleState(properties.Powered.deep_unpack());
+
+	if (properties.Tethering && this.sw)
+	    this.sw.label.text = get_technology_name(this.name, properties.Tethering.deep_unpack());
+    },
+
+    Destroy: function() {
+	if (this.sw) {
+	    this.sw.disconnectAll();
+	    this.sw.destroy();
+	}
+    }
+});
+
+const NetworkMenuManager = new Lang.Class({
+    Name: 'NetworkMenuManager',
+
     Extends: PanelMenu.SystemStatusButton,
-    run: false,
-    _menuopen: false,
 
     _init: function() {
 	this.parent('network-offline-symbolic', _("Network"));
-	this.ConnmanVanished();
-	this.watch = Gio.DBus.system.watch_name(BUS_NAME, Gio.BusNameWatcherFlags.NONE,
-						 Lang.bind(this, this.ConnmanAppeared),
-						Lang.bind(this, function() {
-						    this.CleanUp();
-						    this.ConnmanVanished();
-						}));
-    },
 
-    create_offline: function(offline) {
-        this.offline_switch = new PopupMenu.PopupSwitchMenuItem("Airplane Mode", offline);
-
-	this.offline_switch.connect('toggled',  Lang.bind(this, function(item, state) {
-	let val = GLib.Variant.new('b', state);
-	this._manager.SetPropertyRemote('OfflineMode', val);
-	}));
-
-	this._mainmenu.addMenuItem(this.offline_switch);
-    },
-
-    ConnmanAppeared: function() {
-	this.run = true;
-
-	if (this._noconnman)
-	    this._noconnman.destroy();
+	this.technologies = {};
+	this.services = {};
 
 	/* Create the extension Menu Layout.
 	 * Main menu - Contains the OfflineMode switch.
 	 * Tech menu - Contains the Technology switches.
 	 * Service menu - Contains the services.
-	*/
+	 * Network Settings - Launches Network Settings.
+	 */
+
 	this._mainmenu = new PopupMenu.PopupMenuSection();
 	this.menu.addMenuItem(this._mainmenu);
 
@@ -1011,172 +581,223 @@ const ConnManager = new Lang.Class({
 	this._techmenu = new PopupMenu.PopupMenuSection();
 	this.menu.addMenuItem(this._techmenu);
 
-	this.seperator2 = new PopupMenu.PopupSeparatorMenuItem();
-	this.menu.addMenuItem(this.seperator2);
-
 	this._servicemenu = new PopupMenu.PopupMenuSection();
 	this.menu.addMenuItem(this._servicemenu);
 
+	this.seperator2 = new PopupMenu.PopupSeparatorMenuItem();
+	this.menu.addMenuItem(this.seperator2);
+
 	this._servicesubmenu = null;
+
+	let settings = new PopupMenu.PopupBaseMenuItem();
+
+	let label = new St.Label({text:_("Network Settings")});
+	settings.addActor(label);
+
+	settings.connect('activate', Lang.bind(this, function(){
+	    Util.spawn(['gnome-control-center', 'network']);
+	}));
+
+	this.menu.addMenuItem(settings);
 
 	this._manager = new Manager();
 
-	/* Registering the Agent */
-	this._manager.RegisterAgentRemote(AGENT_PATH);
+	this.menu.connect('open-state-changed', Lang.bind(this, this.MenuOpened));
 
-	this.technologies = {};
-	this.services = {};
+	this._manager.RegisterAgentRemote(ConnmanAgent.PATH);
 
-	/* Offlinemode Section */
+	this._manager.connectSignal('PropertyChanged', Lang.bind(this, this.ManagerPropertyChanged));
+	this._manager.GetPropertiesRemote(Lang.bind(this, this.ManagerGetProperties));
 
-	this._manager.GetPropertiesRemote(Lang.bind(this, function(result, excp) {
+	this._manager.connectSignal('TechnologyAdded', Lang.bind(this, this.ManagerTechnologyAdded));
+	this._manager.connectSignal('TechnologyRemoved', Lang.bind(this, this.ManagerTechnologyRemoved));
+
+	this._manager.GetTechnologiesRemote(Lang.bind(this, this.ManagerGetTechnologies));
+
+	this.start_listening = false;
+	this._manager.connectSignal('ServicesChanged', Lang.bind(this, this.ManagerServicesChanged));
+
+	this._manager.GetServicesRemote(Lang.bind(this, this.ManagerGetServices));
+    },
+
+    MenuOpened: function(menu, open) {
+	    this._menuopen = open;
+
+	    if (open) {
+		this.ScanNetwork();
+		this._manager.GetServicesRemote(Lang.bind(this, this.CreateServiceList));
+	    }
+    },
+
+    ScanNetwork: function() {
+	let path = '/net/connman/technology/wifi';
+
+	if (!Object.getOwnPropertyDescriptor(this.technologies, path))
+	    return;
+
+	let wifi = this.technologies[path];
+
+	if (wifi.powered)
+	    wifi.technology.proxy.ScanRemote();
+    },
+
+    ManagerGetProperties: function(result, exception) {
+	if (!result || exception)
+	    return;
+
 	/* result contains the exported Properties.
 	 * properties is a dict a{sv}. They can be accessed by
 	 * properties.<Property Name>.deep_unpack() which unpacks the variant.
 	*/
-	    let properties = result[0];
-	    this.create_offline(properties.OfflineMode.deep_unpack());
-	}));
 
-	this.manager_sig_prop = this._manager.connectSignal('PropertyChanged', Lang.bind(this, function(proxy, sender,[property, value]) {
-	    if (property == "OfflineMode")
-		this.offline_switch.setToggleState(value.deep_unpack());
-	}));
+	let properties = result[0];
+	if (!properties)
+	    return;
 
-	/* Technology Section */
-
-	/* We first start listening to the signals, since we can miss a Technology added or removed while we are parsing the results of GetTechnologies */
-	this.manager_sig_techadd = this._manager.connectSignal('TechnologyAdded', Lang.bind(this, function(proxy, sender,[path, properties]) {
-	    if (Object.getOwnPropertyDescriptor(this.technologies, path)) {
-		return;
-	    }
-
-	    this.technologies[path] = {technology: new TechnologyItem(path, properties)};
-	    this._techmenu.addMenuItem(this.technologies[path].technology.sw);
-
-	}));
-
-	this.manager_sig_techrem = this._manager.connectSignal('TechnologyRemoved', Lang.bind(this, function(proxy, sender, path) {
-	    if (!Object.getOwnPropertyDescriptor(this.technologies, path)) {
-		return;
-	    }
-
-	    this.technologies[path].technology.CleanUp();
-	    delete this.technologies[path];
-	}));
-
-	this._manager.GetTechnologiesRemote(Lang.bind(this, this.get_technologies));
-
-	/* Services Section */
-
-	/* We cannot start listening to the ServiceChanged signal before GetServices,
-	 *  as we might get a service whose properties are null and which can only be obtained by GetServices.
-	 */
-
-	this._manager.GetServicesRemote(Lang.bind(this, function(result, excp) {
-
-	/* result contains the exported Services.
-	 * services is a array: a(oa{sv}), each element consists of [path, Properties]
-	*/
-	    if (result != null) {
-		let serv_array = result[0];
-
-		if (serv_array.length != 0) {
-		    let [defpath, defprop] = serv_array[0];
-		    _defaultpath = defpath;
-
-		    for each (let [path, properties] in serv_array) {
-			if (!Object.getOwnPropertyDescriptor(this.services, path)) {
-			    this.services[path] = { service: new ServiceItem(path, properties)};
-			    this.add_service(this.services[path].service);
-			}
-		    };
-		}
-	    }
-	    this.startListner();
-	}));
-
-	this.menu.connect('open-state-changed', Lang.bind(this, function(menu, open) {
-	    this._menuopen = open;
-
-	    if (!open) {
-		let paths = Object.getOwnPropertyNames(this.services);
-		for each (path in paths) {
-		    if (this.services[path].service.marked_inactive) {
-			this.services[path].service.CleanUp();
-			delete this.services[path];
-		    }
-		}
-
-		return;
-	    }
-
-	    if (this.manager_sig_services) {
-		this._manager.disconnectSignal(this.manager_sig_services);
-		this.manager_sig_services = null;
-	    }
-
-	    /* Reorder the entire menu, as the order might have changed */
-	    if (this._servicesubmenu) {
-		this._servicesubmenu.destroy();
-		this._servicesubmenu = null;
-	    }
-
-	    this._servicemenu.removeAll();
-
-	    this._manager.GetServicesRemote(Lang.bind(this, function(result, excp) {
-		if (result != null) {
-		    let serv_array = result[0];
-
-		    for each (let [path, properties] in serv_array) {
-			if (!Object.getOwnPropertyDescriptor(this.services, path))
-			    this.services[path] = { service: new ServiceItem(path, properties)};
-			this.add_service(this.services[path].service);
-		    };
-		}
-
-		this.startListner();
-	    }));
-
-	    /* If the menu was opened, trigger a wifi scan.
-	     * ConnMan discards wifi scan results after a timeout. */
-
-	    let path = '/net/connman/technology/wifi';
-	    if (!Object.getOwnPropertyDescriptor(this.technologies, path)) {
-		return;
-	    }
-
-	    let wifi = this.technologies['/net/connman/technology/wifi'];
-	    wifi.technology.proxy.ScanRemote();
-	}));
+	this.AddFlightButton(properties.OfflineMode.deep_unpack());
     },
 
-    get_technologies: function(result, excp) {
+    AddFlightButton: function(enable) {
+        this.flight_switch = new PopupMenu.PopupSwitchMenuItem(_("In-Flight Mode"),
+							       enable,
+							       {style_class:'popup-subtitle-menu-item'});
+
+	this.flight_switch.connect('toggled',  Lang.bind(this, function(item, state) {
+	    let val = GLib.Variant.new('b', state);
+	    this._manager.SetPropertyRemote('OfflineMode', val);
+	}));
+
+	this._mainmenu.addMenuItem(this.flight_switch);
+    },
+
+    ManagerPropertyChanged: function(proxy, sender, [property, value]) {
+	if (property == "OfflineMode")
+	    this.flight_switch.setToggleState(value.deep_unpack());
+    },
+
+    ManagerTechnologyAdded: function(proxy, sender, [path, properties]) {
+	if (Object.getOwnPropertyDescriptor(this.technologies, path)) {
+	    return;
+	}
+
+	if (properties.Name.deep_unpack() == 'Bluetooth' && BLUETOOTH_APPLET)
+	    return;
+
+	this.technologies[path] = {technology: new TechnologyItem(path, properties)};
+	this._techmenu.addMenuItem(this.technologies[path].technology.sw);
+	this._manager.GetTechnologiesRemote(Lang.bind(this, this.ManagerGetTechnologies));
+    },
+
+    ManagerTechnologyRemoved: function(proxy, sender, path) {
+	if (!Object.getOwnPropertyDescriptor(this.technologies, path)) {
+	    return;
+	}
+
+	this.technologies[path].technology.Destroy();
+	delete this.technologies[path];
+
+	this.menu.close();
+    },
+
+    ManagerGetTechnologies: function(result, exception) {
 	/* result contains the exported Technologies.
 	 * technologies is a array: a(oa{sv}), each element consists of [path, Properties]
 	*/
-	if (result == null)
+	if (!result || exception)
 	    return;
 
 	let update = false;
+
 	let tech_array = result[0];
 
 	for each (let [path, properties] in tech_array) {
 	    if (Object.getOwnPropertyDescriptor(this.technologies, path)) {
 		this.technologies[path].technology.UpdateProperties(properties);
 	    } else {
+		if (properties.Name.deep_unpack() == 'Bluetooth' && BLUETOOTH_APPLET)
+		    continue;
+
 		this.technologies[path] = { technology: new TechnologyItem(path, properties)};
 		update = true;
 	    }
+
 		this._techmenu.addMenuItem(this.technologies[path].technology.sw);
 	};
 
 	if (update)
-	    this._manager.GetTechnologiesRemote(Lang.bind(this, this.get_technologies));
+	    this._manager.GetTechnologiesRemote(Lang.bind(this, this.ManagerGetTechnologies));
     },
 
-    add_service: function(service) {
-	if (this._servicemenu.numMenuItems > MAX_SERVICES && this._servicesubmenu == null) {
+    ManagerGetServices: function(result, exception) {
+	/* result contains the exported services.
+	 * services is a array: a(oa{sv}), each element consists of [path, Properties]
+	*/
+	if (!result || exception) {
+	    this.start_listening = true;
+	    return;
+	}
+
+	let serv_array = result[0];
+	if (!serv_array) {
+	    this.start_listening = true;
+	    return;
+	}
+	/* if old service then update the property if new service
+	create the service and add it to the service list */
+
+	let update = false;
+
+	for each (let [path, properties] in serv_array) {
+	    if (Object.getOwnPropertyDescriptor(this.services, path))
+		this.services[path].service.UpdateProperties(properties);
+	    else {
+		this.services[path] = { service: new ServiceItem(path, properties)};
+		update = true;
+		}
+	}
+
+	if (!_defaultpath) {
+		let [defpath, defprop] = serv_array[0];
+		_defaultpath = defpath;
+	    }
+
+	if (update) {
+	    this._manager.GetServicesRemote(Lang.bind(this, this.ManagerGetServices));
+	    return;
+	}
+
+	this.start_listening = true;
+    },
+
+    ManagerServicesChanged: function(proxy, sender, [changed, removed]) {
+	if (!this.start_listening)
+	    return;
+
+	    for each (let path_rem in removed) {
+		this.RemoveService(path_rem);
+	    };
+
+	    if (changed && changed[0]) {
+		let [defpath, defprop] = changed[0];
+		_defaultpath = defpath;
+	    }
+
+	    for each (let [path, properties] in changed) {
+		/* if service is already present, and menu is open activate it if its inactive */
+		/* if menu is closed, mark for reorder */
+		if (Object.getOwnPropertyDescriptor(this.services, path)) {
+		    if (this._menuopen && this.services[path].service.marked_inactive)
+			this.services[path].service.set_inactive(false);
+		    this.services[path].service.check_default();
+		} else {
+		    this.services[path] = { service: new ServiceItem(path, properties)};
+		    this.AddService(this.services[path].service);
+		}
+	    }
+    },
+
+    AddService: function(service) {
+	if (this._servicemenu.numMenuItems > MAX_SERVICES && !this._servicesubmenu) {
 	    this._servicesubmenu = new PopupMenu.PopupSubMenuMenuItem(_("More..."));
 	    this._servicemenu.addMenuItem(this._servicesubmenu);
 	}
@@ -1187,195 +808,137 @@ const ConnManager = new Lang.Class({
 	    this._servicemenu.addMenuItem(service.CreateMenuItem());
     },
 
-    remove_service: function(path) {
+    RemoveService: function(path) {
 	if (!Object.getOwnPropertyDescriptor(this.services, path))
 	    return;
 
 	if (this._menuopen) {
 	    this.services[path].service.set_inactive(true);
 	} else {
-	    this.services[path].service.CleanUp();
+	    this.services[path].service.Destroy();
 	    delete this.services[path];
 	}
     },
 
-    startListner: function() {
-	this.manager_sig_services = this._manager.connectSignal('ServicesChanged', Lang.bind(this, function(proxy, sender, [changed, removed]) {
+    CreateServiceList: function(result, exception) {
+	/* result contains the exported services.
+	 * services is a array: a(oa{sv}), each element consists of [path, Properties]
+	*/
 
-	    for each (let path_rem in removed) {
-		this.remove_service(path_rem);
-	    };
-
-	    if (changed != null&& changed[0] != null) {
-		let [defpath, defprop] = changed[0];
-		_defaultpath = defpath;
-	    }
-
-	    let update = false;
-
-	    for each (let [path, properties] in changed) {
-		/* if service is already present, and menu is open activate it if its inactive */
-		/* if menu is closed, mark for reorder */
-		if (Object.getOwnPropertyDescriptor(this.services, path)) {
-		    if (this._menuopen && this.services[path].service.marked_inactive)
-			    this.services[path].service.set_inactive(false);
-		    this.services[path].service.check_default();
-		} else {
-		/* if service is new, and menu is open add it to the end of the menu */
-		/* if menu is closed, mark for reorder */
-		    update = true;
-		}
-	    }
-
-	    if (update == true)
-		this._manager.GetServicesRemote(Lang.bind(this, this.get_services));
-	}));
-    },
-
-    get_services: function(result, excp) {
-	if (result == null)
+	if (!result || exception) {
+	    this.start_listening = true;
 	    return;
+	}
 
 	let serv_array = result[0];
-
-	/* if old service then update the property if new service
-	create the service and add it to the end */
-
-	for each (let [path, properties] in serv_array) {
-	    if (Object.getOwnPropertyDescriptor(this.services, path)) {
-		this.services[path].service.UpdateProperties(properties);
-	    } else {
-		this.services[path] = { service: new ServiceItem(path, properties)};
-		if (this._menuopen) {
-		    this.add_service(this.services[path].service);
-		}
-	    }
-	}
-    },
-
-    ConnmanVanished: function() {
-	this.run = false;
-	this._menuopen = false;
-	this.setIcon('network-offline-symbolic');
-	_defaultpath = null;
-	this._noconnman = new PopupMenu.PopupMenuSection();
-	let no_connmand = new PopupMenu.PopupMenuItem(_("Connman is not running"),
-			{ reactive: false, style_class: 'popup-inactive-menu-item' });
-	this._noconnman.addMenuItem(no_connmand);
-	this.menu.addMenuItem(this._noconnman);
-    },
-
-    CleanUp: function() {
-	if (this.run == false) {
-	    if (this._noconnman)
-		this._noconnman.destroy();
+	if (!serv_array) {
+	    this.start_listening = true;
 	    return;
 	}
 
-	/* Cleanup all the technologies, services, Agent and unwatch. */
+	/* Reorder the entire menu, as the order might have changed */
+	this.ClearServiceList();
 
-	/*Agent Cleanup */
-	if (this._manager) {
-	    this._manager.UnregisterAgentRemote(AGENT_PATH);
-	    _agent.CleanUp();
+	if (serv_array.length > 0) {
+	    let sep = new PopupMenu.PopupSeparatorMenuItem();
+	    this._servicemenu.addMenuItem(sep);
 	}
 
-	/* Technology cleanup */
-	if (this.manager_sig_techrem && this._manager) {
-	    this._manager.disconnectSignal(this.manager_sig_techrem);
-	    this.manager_sig_techrem = null;
+	for each (let [path, properties] in serv_array) {
+	    if (Object.getOwnPropertyDescriptor(this.services, path))
+		this.AddService(this.services[path].service);
 	}
+    },
 
-	if (this.manager_sig_techadd && this._manager) {
-	    this._manager.disconnectSignal(this.manager_sig_techadd);
-	    this.manager_sig_techadd = null;
-	}
-
-
-	if (this.technologies) {
-	    for each (let path in Object.keys(this.technologies)) {
-		this.technologies[path].technology.CleanUp();
-		delete this.technologies[path];
-            }
-
-	    delete this.technologies;
-	}
-
-	/* Services cleanup */
-	if (this.manager_sig_services && this._manager) {
-	    this._manager.disconnectSignal(this.manager_sig_services);
-	    this.manager_sig_services = null;
-	}
-
-
+    ClearServiceList: function() {
 	if (this.services) {
-	    for each (let path1 in Object.keys(this.services)) {
-		this.services[path1].service.CleanUp();
-		delete this.services[path1];
-            }
-
-	    delete this.services;
+	    let paths = Object.getOwnPropertyNames(this.services);
+	    for each (path in paths) {
+		if (this.services[path].service.marked_inactive) {
+		    this.services[path].service.Destroy();
+		    delete this.services[path];
+		}
+	    }
 	}
 
-	/* Manager cleanup */
-	if (this.manager_sig_prop && this._manager) {
-	    this._manager.disconnectSignal(this.manager_sig_prop);
-	    this.manager_sig_prop = null;
+	if (this._servicesubmenu) {
+	    this._servicesubmenu.destroy();
+	    this._servicesubmenu = null;
 	}
-
-	if (this.offline_switch)
-	    this.offline_switch.destroy();
-
-	if(this._manager) {
-	    delete this._manager;
-	    this._manager = null;
-	}
-
-	/* Menus cleanup */
-	if (this.seperator1)
-	    this.seperator1.destroy();
-
-	if (this.seperator2)
-	    this.seperator2.destroy();
-
-	if (this._mainmenu)
-	    this._mainmenu.destroy();
-
-	if (this._techmenu)
-	    this._techmenu.destroy();
-
-	if (this._servicesubmenu)
-	     this._servicesubmenu.destroy();
 
 	if (this._servicemenu)
-	    this._servicemenu.destroy();
-
+	    this._servicemenu.removeAll();
     },
-})
 
-function init() {
-    //Nothing to do here.
-}
+    Stop: function() {
+	let path;
+	let techs = Object.getOwnPropertyNames(this.technologies);
+	for each (path in techs) {
+	    this.technologies[path].technology.Destroy();
+	    delete this.technologies[path];
+	}
 
-function enable() {
-    _agent = new Agent();
+	let services = Object.getOwnPropertyNames(this.technologies);
+	for each (path in services) {
+	    this.services[path].service.Destroy();
+	    delete this.services[path];
+	}
+    }
+});
 
-    _extension = new ConnManager();
+let NetworkMenu;
+let _Watch;
+let Agent;
+
+function ConnmanAppeared() {
+    if (NetworkMenu)
+	return;
+
+    Agent = new ConnmanAgent.Agent();
+    NetworkMenu = new NetworkMenuManager();
 
     /* We don't need the icon/menu in initial setup mode */
     if (Main.sessionMode.currentMode == 'initial-setup')
       return;
 
-    Main.panel.addToStatusArea('ConnMan', _extension);
+    Main.panel.addToStatusArea('ConnMan', NetworkMenu);
+}
+
+function ConnmanVanished() {
+    if (NetworkMenu) {
+	Agent.Destroy();
+	Agent = null;
+
+	NetworkMenu.Stop();
+        NetworkMenu.destroy();
+	NetworkMenu = null;
+    }
+}
+
+function init() {
+}
+
+function enable() {
+    if (!_Watch) {
+	_Watch = Gio.DBus.system.watch_name(BUS_NAME,
+					    Gio.BusNameWatcherFlags.NONE,
+					    ConnmanAppeared,
+					    ConnmanVanished);
+    }
 }
 
 function disable() {
-    Gio.DBus.system.unwatch_name(_extension.watch);
-    _extension.CleanUp();
+    if (NetworkMenu) {
+	Agent.Destroy();
+	Agent = null;
+	NetworkMenu.Stop();
 
-    _agent._dbusImpl.unexport(Gio.DBus.system, AGENT_PATH);
+	NetworkMenu.destroy();
+	NetworkMenu = null;
+    }
 
-    _extension.destroy();
-    _agent  = null;
-    _defaultpath = null;
+    if (_Watch) {
+	Gio.DBus.system.unwatch_name(_Watch);
+	_Watch = null;
+    }
 }

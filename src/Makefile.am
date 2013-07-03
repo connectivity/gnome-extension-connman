@@ -4,7 +4,7 @@ topextensiondir = $(datadir)/gnome-shell/extensions
 extensiondir = $(topextensiondir)/$(uuid)
 uuid = gnome-extension-connman
 
-dist_extension_DATA = extension.js
+dist_extension_DATA = extension.js connmanAgent.js
 nodist_extension_DATA = metadata.json $(EXTRA_EXTENSION)
 
 EXTRA_DIST = metadata.json.in
