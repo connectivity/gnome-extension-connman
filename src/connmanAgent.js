@@ -428,7 +428,7 @@ const ConnmanAgentDialog = new Lang.Class({
 	if (this.wps.actor.checked) {
 	    label.text = _('Using WPS');
 
-	    this.old_str2 = this.field2;
+	    this.old_field2 = this.field2;
 	    this.old_type = this.field2_type;
 
 	    this.field2 = 'WPS';

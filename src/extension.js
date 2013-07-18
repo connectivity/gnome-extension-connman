@@ -671,8 +671,11 @@ const NetworkMenuManager = new Lang.Class({
     },
 
     ManagerPropertyChanged: function(proxy, sender, [property, value]) {
-	if (property == "OfflineMode")
+	if (property == "OfflineMode") {
 	    this.flight_switch.setToggleState(value.deep_unpack());
+	    if (value.deep_unpack() == true)
+		this.setIcon(network-offline-symbolic);
+	}
     },
 
     ManagerTechnologyAdded: function(proxy, sender, [path, properties]) {
